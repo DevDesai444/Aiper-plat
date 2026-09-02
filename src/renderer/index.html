@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!--
+      Must name every host the app talks to. A meta policy and the header the main process
+      sends are intersected by the browser, so anything missing here is blocked no matter what
+      the header allows — which is exactly how "Failed to fetch" happened once this file still
+      named a server that no longer exists. Keep it in step with src/main/ipc/settings.ts.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://avatars.githubusercontent.com; font-src 'self' data:; object-src 'none'; worker-src 'self' blob:; frame-src 'self' blob:; connect-src 'self' https://api.github.com https://github.com http://localhost:5173 ws://localhost:5173"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Aiper</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

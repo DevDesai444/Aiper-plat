@@ -1,0 +1,55 @@
+appId: com.aiper.platform
+productName: Aiper
+copyright: Copyright © Aiper
+
+directories:
+  buildResources: build
+  output: dist
+
+files:
+  - out/**/*
+  - package.json
+
+asarUnpack:
+  - '**/*.node'
+
+mac:
+  category: public.app-category.productivity
+  icon: build/icon.png
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+    - target: zip
+      arch: [x64, arm64]
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  # Notarization/signing are env-var driven and unset by default (see README) — leave
+  # CSC_IDENTITY_AUTO_DISCOVERY=false in local dev to skip signing cleanly.
+  notarize: false
+
+dmg:
+  sign: false
+
+win:
+  icon: build/icon.png
+  target:
+    - target: nsis
+      arch: [x64]
+  # win.certificateFile / win.certificatePassword are read from env vars
+  # (CSC_LINK / CSC_KEY_PASSWORD) when set; unsigned builds show a SmartScreen
+  # prompt on first run — expected for internal test builds, see README.
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+
+linux:
+  icon: build/icon.png
+  target:
+    - target: AppImage
+      arch: [x64]
+  category: Office

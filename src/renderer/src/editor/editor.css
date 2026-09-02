@@ -1,0 +1,426 @@
+.editor-scroll {
+  height: 100%;
+  overflow: auto;
+  padding: 32px;
+  position: relative;
+}
+
+.find-replace-bar {
+  margin: 0 auto 20px;
+  width: fit-content;
+}
+
+.editor-page {
+  width: 794px;
+  min-height: 1123px;
+  margin: 0 auto;
+  background: var(--page-bg);
+  color: var(--page-text);
+  font-family: var(--font-doc);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  transform-origin: top center;
+  padding: 96px 76px;
+}
+
+.editor-page-header,
+.editor-page-footer {
+  font-size: 9pt;
+  color: var(--page-text-faint);
+  text-align: center;
+  position: absolute;
+  left: 76px;
+  right: 76px;
+}
+.editor-page-header {
+  top: 40px;
+}
+.editor-page-footer {
+  bottom: 40px;
+}
+.editor-page {
+  position: relative;
+}
+
+.editor-page-content {
+  outline: none;
+  min-height: 900px;
+  font-size: 12pt;
+  line-height: 1.5;
+}
+.editor-page-content p {
+  margin: 0 0 10px;
+}
+.editor-page-content h1,
+.editor-page-content h2,
+.editor-page-content h3 {
+  font-family: var(--font-doc);
+  font-weight: 700;
+  margin: 18px 0 8px;
+}
+.editor-page-content h1 {
+  font-size: 20pt;
+}
+.editor-page-content h2 {
+  font-size: 16pt;
+}
+.editor-page-content h3 {
+  font-size: 13pt;
+}
+.editor-page-content p.ctd-section {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 11pt;
+  margin-top: 16px;
+}
+.editor-page-content p.reference {
+  font-size: 10pt;
+  color: var(--page-text-muted);
+  padding-left: 18px;
+  text-indent: -18px;
+}
+.editor-page-content p.table-caption {
+  font-size: 10pt;
+  font-style: italic;
+  color: var(--page-text-muted);
+}
+.editor-page-content ul,
+.editor-page-content ol {
+  padding-left: 26px;
+  margin: 0 0 10px;
+}
+.editor-page-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 10px 0;
+}
+.editor-page-content th,
+.editor-page-content td {
+  border: 1px solid #9aa0a6;
+  padding: 4px 8px;
+  font-size: 10.5pt;
+  text-align: left;
+}
+.editor-page-content th {
+  background: color-mix(in srgb, var(--page-text) 6%, transparent);
+  font-weight: 700;
+}
+.editor-page-content img {
+  max-width: 100%;
+}
+.editor-page-content a {
+  color: #41627f;
+}
+.editor-page-content ins.track-insertion {
+  color: #41627f;
+  text-decoration: underline;
+  background: none;
+}
+.editor-page-content del.track-deletion {
+  color: #9aa0a6;
+  text-decoration: line-through;
+  background: none;
+}
+.editor-page-content span[data-comment-id] {
+  background: color-mix(in srgb, #c8b06b 30%, transparent);
+  box-shadow: 0 1px 0 #c8b06b;
+  cursor: pointer;
+}
+.editor-page-content .page-break-marker {
+  position: relative;
+  height: 0;
+  border-top: 1px dashed #9aa0a6;
+  margin: 24px 0;
+}
+.editor-page-content .page-break-marker::after {
+  content: 'Page break';
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--page-bg);
+  padding: 0 8px;
+  font-family: var(--font-label);
+  font-size: 8.5pt;
+  color: var(--page-text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.editor-page-content p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #9aa0a6;
+  pointer-events: none;
+  height: 0;
+}
+
+/* ---------- Editor banners ---------- */
+.editor-banner {
+  max-width: 794px;
+  margin: 0 auto 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 11px;
+  font-size: 11.5px;
+  line-height: 1.4;
+  border: 1px solid var(--dv);
+  border-left-width: 2px;
+  background: var(--chrome2);
+  color: var(--mut);
+}
+.editor-banner strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+.editor-banner--locked {
+  border-left-color: var(--hi);
+}
+.editor-banner--locked strong {
+  color: var(--hi);
+}
+.editor-banner--update {
+  border-left-color: var(--color-accent);
+  justify-content: space-between;
+}
+.editor-banner--update button {
+  flex: none;
+  border: 1px solid var(--color-accent);
+  color: var(--color-accent);
+  font-size: 10.5px;
+  padding: 4px 10px;
+}
+.editor-banner--update button:hover {
+  background: var(--color-accent);
+  color: #0f1113;
+}
+
+/* ---------- Find / Replace bar ---------- */
+.find-replace-bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--chrome2);
+  border: 1px solid var(--dv);
+  padding: 6px 8px;
+}
+.find-replace-bar input {
+  background: var(--deep);
+  border: 1px solid var(--dv);
+  padding: 4px 8px;
+  font-size: 11.5px;
+  width: 150px;
+}
+.find-replace-count {
+  font-size: 10px;
+  color: var(--mut2);
+  width: 40px;
+  text-align: center;
+}
+.find-replace-bar button {
+  color: var(--mut);
+  padding: 4px;
+}
+.find-replace-bar button:hover {
+  color: var(--ink);
+}
+.find-replace-text-btn {
+  font-size: 10.5px !important;
+  border: 1px solid var(--dv);
+  padding: 4px 8px !important;
+  white-space: nowrap;
+}
+
+/* ── View modes ─────────────────────────────────────────────────────────────
+   Print layout is the default page look above. The other three change the page
+   metaphor rather than just its zoom, which is what makes the View tab do
+   something visible rather than only setting a flag. */
+.editor-page--read {
+  width: 900px;
+  padding: 64px 96px;
+  min-height: auto;
+}
+.editor-page--web {
+  width: 100%;
+  max-width: none;
+  min-height: auto;
+  padding: 40px 56px;
+  box-shadow: none;
+}
+.editor-page--draft {
+  width: 100%;
+  max-width: 1100px;
+  min-height: auto;
+  padding: 24px 32px;
+  box-shadow: none;
+  font-family: var(--font-ui, system-ui);
+}
+.editor-page--draft .editor-page-header,
+.editor-page--draft .editor-page-footer {
+  display: none;
+}
+
+/* Multi-column body text (Layout → Columns). */
+.editor-page[style*='--columns'] .editor-page-content {
+  column-count: var(--columns);
+  column-gap: 28px;
+  column-rule: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+/* Design → Paragraph spacing. */
+.editor-page-content p {
+  margin-bottom: var(--para-spacing, 6pt);
+}
+
+/* Design → Effects (page shadow) and Page borders. */
+.editor-page.is-shadowed {
+  box-shadow: 0 34px 90px rgba(0, 0, 0, 0.65);
+}
+.editor-page.is-bordered .editor-page-content {
+  border: 1.5pt solid var(--accent, #749dc4);
+  padding: 18px 22px;
+}
+
+/* View → Gridlines. */
+.editor-page.is-gridlines .editor-page-content {
+  background-image: linear-gradient(rgba(120, 140, 165, 0.16) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(120, 140, 165, 0.16) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Layout → Line numbers. */
+.editor-page.is-linenumbers .editor-page-content > p,
+.editor-page.is-linenumbers .editor-page-content > h1,
+.editor-page.is-linenumbers .editor-page-content > h2,
+.editor-page.is-linenumbers .editor-page-content > h3 {
+  counter-increment: aiper-line;
+  position: relative;
+}
+.editor-page.is-linenumbers .editor-page-content {
+  counter-reset: aiper-line;
+}
+.editor-page.is-linenumbers .editor-page-content > p::before,
+.editor-page.is-linenumbers .editor-page-content > h1::before,
+.editor-page.is-linenumbers .editor-page-content > h2::before,
+.editor-page.is-linenumbers .editor-page-content > h3::before {
+  content: counter(aiper-line);
+  position: absolute;
+  left: -46px;
+  width: 32px;
+  text-align: right;
+  font-size: 8pt;
+  color: var(--page-text-faint);
+  user-select: none;
+}
+
+/* Design → Watermark. */
+.editor-watermark {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 84pt;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: rgba(120, 140, 165, 0.13);
+  transform: rotate(-32deg);
+  pointer-events: none;
+  user-select: none;
+  z-index: 0;
+  overflow: hidden;
+}
+.editor-page-content {
+  position: relative;
+  z-index: 1;
+}
+
+/* View → Ruler. */
+.editor-ruler {
+  width: 794px;
+  margin: 0 auto 10px;
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line, rgba(255, 255, 255, 0.14));
+  padding-bottom: 3px;
+}
+.editor-ruler-tick {
+  flex: 1;
+  font-size: 8px;
+  color: var(--page-text-faint, #8a94a6);
+  text-align: left;
+  border-left: 1px solid rgba(140, 155, 175, 0.3);
+  padding-left: 2px;
+  height: 13px;
+}
+.editor-ruler-tick.is-major {
+  border-left-color: rgba(140, 155, 175, 0.7);
+  height: 17px;
+}
+
+/* References → Footnotes, rendered under the page body. */
+.editor-footnotes {
+  margin-top: 28px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(120, 140, 165, 0.4);
+  font-size: 9pt;
+  line-height: 1.45;
+  color: var(--page-text-faint);
+}
+.editor-footnote sup {
+  margin-right: 4px;
+  font-weight: 600;
+}
+
+/* Review → Show markup / All markup. Simple markup shows the final text; hidden
+   markup drops the revision styling altogether. */
+.editor-page.markup-simple ins.track-insertion {
+  background: none;
+  text-decoration: none;
+  color: inherit;
+}
+.editor-page.markup-simple del.track-deletion {
+  display: none;
+}
+.editor-page.markup-none ins.track-insertion {
+  background: none;
+  text-decoration: none;
+  color: inherit;
+}
+.editor-page.markup-none del.track-deletion {
+  display: none;
+}
+.editor-page.markup-none span[data-comment-id] {
+  background: none;
+  border-bottom: none;
+}
+
+/* ── Print ──────────────────────────────────────────────────────────────────
+   File → Print opens the system dialog on the live window, so everything that
+   is not the page has to be taken out of the printed output. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .editor-page,
+  .editor-page * {
+    visibility: visible;
+  }
+  .editor-page {
+    position: absolute;
+    left: 0;
+    top: 0;
+    margin: 0;
+    box-shadow: none;
+    transform: none !important;
+    width: 100%;
+  }
+  .find-replace-bar,
+  .editor-ruler,
+  .editor-banner {
+    display: none !important;
+  }
+}
