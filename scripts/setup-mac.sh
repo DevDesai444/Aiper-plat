@@ -8,14 +8,14 @@
 #
 # Run it with:
 #
-#     curl -fsSL https://raw.githubusercontent.com/DevDesai444/Aiper/main/scripts/setup-mac.sh | bash
+#     curl -fsSL https://raw.githubusercontent.com/DevDesai444/Aiper-plat/main/scripts/setup-mac.sh | bash
 #
 set -euo pipefail
 
 # Public by design: the device flow has no client secret, and any client id ships inside the
 # desktop app anyway, so this is not something that can be kept private.
 CLIENT_ID="${AIPER_GITHUB_CLIENT_ID:-Ov23liGwgNrBrhj8UZP8}"
-REPO_URL="${AIPER_REPO_URL:-https://github.com/DevDesai444/Aiper.git}"
+REPO_URL="${AIPER_REPO_URL:-https://github.com/DevDesai444/Aiper-plat.git}"
 TARGET="${AIPER_TARGET:-$HOME/Desktop/Aiper}"
 
 say()  { printf '  \033[36m%s\033[0m\n' "$1"; }

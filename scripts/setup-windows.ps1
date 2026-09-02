@@ -7,7 +7,7 @@
 
   Run it with:
 
-      irm https://raw.githubusercontent.com/DevDesai444/Aiper/main/scripts/setup-windows.ps1 | iex
+      irm https://raw.githubusercontent.com/DevDesai444/Aiper-plat/main/scripts/setup-windows.ps1 | iex
 
   Overrides, if ever needed, are environment variables rather than parameters — a param block
   behaves inconsistently when a script is piped into iex, and this script is meant to be run
@@ -25,7 +25,7 @@ $ErrorActionPreference = 'Continue'
 # Public by design: the device flow has no client secret, and any client id ships inside the
 # desktop app anyway, so this is not something that can be kept private.
 $ClientId = if ($env:AIPER_GITHUB_CLIENT_ID) { $env:AIPER_GITHUB_CLIENT_ID } else { 'Ov23liGwgNrBrhj8UZP8' }
-$RepoUrl  = if ($env:AIPER_REPO_URL) { $env:AIPER_REPO_URL } else { 'https://github.com/DevDesai444/Aiper.git' }
+$RepoUrl  = if ($env:AIPER_REPO_URL) { $env:AIPER_REPO_URL } else { 'https://github.com/DevDesai444/Aiper-plat.git' }
 $Target   = if ($env:AIPER_TARGET) { $env:AIPER_TARGET } else { Join-Path ([Environment]::GetFolderPath('Desktop')) 'Aiper' }
 
 function Say  ($m) { Write-Host "  $m" -ForegroundColor Cyan }
