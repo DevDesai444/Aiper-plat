@@ -8,7 +8,7 @@ import ProposalsPanel from './ProposalsPanel'
 
 const TABS: Array<{ id: DockTab; label: string; icon: typeof MessageSquareText }> = [
   { id: 'chat', label: 'AI', icon: MessageSquareText },
-  { id: 'compliance', label: 'Compliance', icon: ShieldCheck },
+  { id: 'compliance', label: 'Compatibility check', icon: ShieldCheck },
   { id: 'proposals', label: 'Changes', icon: GitPullRequest },
   { id: 'comments', label: 'Review', icon: PenLine },
   { id: 'audit', label: 'Audit', icon: ScrollText }
