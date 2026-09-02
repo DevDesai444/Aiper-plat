@@ -14,7 +14,7 @@ set -euo pipefail
 
 # Public by design: the device flow has no client secret, and any client id ships inside the
 # desktop app anyway, so this is not something that can be kept private.
-CLIENT_ID="${AIPER_GITHUB_CLIENT_ID:-}"
+CLIENT_ID="${AIPER_GITHUB_CLIENT_ID:-Ov23liGwgNrBrhj8UZP8}"
 REPO_URL="${AIPER_REPO_URL:-https://github.com/DevDesai444/Aiper.git}"
 TARGET="${AIPER_TARGET:-$HOME/Desktop/Aiper}"
 
