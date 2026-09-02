@@ -1,0 +1,10 @@
+node_modules/
+out/
+dist/
+.DS_Store
+*.log
+.aiper-recovery/
+*.tsbuildinfo
+electron.vite.config.js
+electron.vite.config.d.ts
+.env
