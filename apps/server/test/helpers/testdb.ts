@@ -33,6 +33,7 @@ export function testDbConfig(): DbConfig & { adminDatabase: string } {
 const DATA_TABLES = [
   'audit_log',
   'access_grants',
+  'document_snapshots',
   'documents',
   'folders',
   'projects',
