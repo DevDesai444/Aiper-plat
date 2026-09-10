@@ -19,6 +19,7 @@ const CONFIG: Config = {
   PGUSER: 'x',
   PGPASSWORD: 'x',
   PGDATABASE: 'x',
+  SNAPSHOT_AUTO_INTERVAL_MS: 30_000,
 }
 
 async function signToken(payload: Record<string, unknown>): Promise<string> {

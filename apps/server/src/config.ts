@@ -32,6 +32,11 @@ const ConfigInputSchema = z.object({
   PGUSER: z.string().min(1),
   PGPASSWORD: z.string().min(1),
   PGDATABASE: z.string().min(1),
+  // How often the Yjs WS server persists a dirty room via
+  // saveSnapshot(reason='auto'). 30s is aggressive for large-concurrency
+  // rooms but fine for MVP — tune, don't refactor, when we hit a real
+  // load ceiling. A last-peer-disconnect flush runs regardless.
+  SNAPSHOT_AUTO_INTERVAL_MS: z.coerce.number().int().positive().default(30_000),
 })
 
 /**

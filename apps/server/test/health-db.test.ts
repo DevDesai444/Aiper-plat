@@ -28,6 +28,7 @@ function buildConfig(): Config {
     PGUSER: t.user,
     PGPASSWORD: t.password,
     PGDATABASE: t.database,
+    SNAPSHOT_AUTO_INTERVAL_MS: 30_000,
   }
 }
 
