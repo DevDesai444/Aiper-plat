@@ -8,6 +8,8 @@ import {
   listProjectDocuments,
 } from '../api/endpoints'
 import { ApiFetchError } from '../api/client'
+import { ShareDialog } from '../components/ShareDialog'
+import '../components/share.css'
 import './pages.css'
 
 type CreateMode = 'folder' | 'document'
@@ -23,6 +25,7 @@ export function ProjectOverviewPage() {
   const [project, setProject] = useState<Project | null>(null)
   const [documents, setDocuments] = useState<Document[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [showShare, setShowShare] = useState(false)
 
   const load = (signal?: AbortSignal): void => {
     if (!pid) return
@@ -51,13 +54,37 @@ export function ProjectOverviewPage() {
 
   return (
     <div className="page">
-      <header className="page-header">
-        <h1 className="page-title">{project?.name ?? 'Project'}</h1>
-        <p className="page-sub">
-          {project ? project.slug : pid} —{' '}
-          <Link to={`/orgs/${project?.orgId ?? ''}`}>back to org</Link>
-        </p>
+      <header
+        className="page-header"
+        style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}
+      >
+        <div>
+          <h1 className="page-title">{project?.name ?? 'Project'}</h1>
+          <p className="page-sub">
+            {project ? project.slug : pid} —{' '}
+            <Link to={`/orgs/${project?.orgId ?? ''}`}>back to org</Link>
+          </p>
+        </div>
+        {project && (
+          <button
+            type="button"
+            className="share-open-btn"
+            onClick={() => setShowShare(true)}
+          >
+            Share
+          </button>
+        )}
       </header>
+
+      {project && showShare && (
+        <ShareDialog
+          subjectType="project"
+          subjectId={project.id}
+          subjectLabel={project.name}
+          callerRole={project.myRole}
+          onClose={() => setShowShare(false)}
+        />
+      )}
 
       {error && <div className="page-error">{error}</div>}
 
