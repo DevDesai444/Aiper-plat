@@ -1,0 +1,26 @@
+# Stub compose file for local development. E10 grows this into the real
+# deploy stack (server container, backup cron, Nginx, secrets). All I seed
+# is Postgres 16 so the team can start apps/server against a real database
+# from PR-3 onward.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: aiper-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: aiper
+      POSTGRES_PASSWORD: aiper_dev
+      POSTGRES_DB: aiper
+    ports:
+      - "5432:5432"
+    volumes:
+      - aiper-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aiper -d aiper"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  aiper-pg-data:
