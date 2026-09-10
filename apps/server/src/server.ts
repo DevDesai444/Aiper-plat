@@ -19,14 +19,16 @@ import pkg from '../package.json' with { type: 'json' }
 
 /**
  * Build a fully-wired Fastify instance. Exported (rather than starting
- * the listen inside index.ts) so tests can `await buildServer(config)`
- * and hit routes with `app.inject(...)` — no port bind, no cleanup.
+ * the listen inside index.ts) so tests can `await buildServer(config,
+ * pool)` and hit routes with `app.inject(...)` — no port bind, no
+ * cleanup.
  *
- * `pool` is optional so non-DB tests (health, me, jwt, config) do not
- * have to invent one; the audit route registers only when a pool is
- * supplied. In production, `index.ts` always passes a real pool.
+ * `pool` is required as of PR-6 — every route the server exposes now
+ * touches the DB (health probes it, /me and /audit read it, middleware
+ * writes to it). Tests use `setupTestDb()` to get a pool; unit tests
+ * that want to fake a failure can pass a pool wired to a bad port.
  */
-export async function buildServer(config: Config, pool?: pg.Pool): Promise<FastifyInstance> {
+export async function buildServer(config: Config, pool: pg.Pool): Promise<FastifyInstance> {
   const app = Fastify({
     logger: {
       level: config.LOG_LEVEL,
@@ -61,9 +63,9 @@ export async function buildServer(config: Config, pool?: pg.Pool): Promise<Fasti
   app.get('/api/v1/openapi.json', { schema: { hide: true } }, async () => app.swagger())
 
   registerAuthMiddleware(app, buildVerifier(config), pool)
-  registerHealthRoute(app)
+  registerHealthRoute(app, pool)
   registerMeRoute(app)
-  if (pool) registerAuditRoute(app, pool)
+  registerAuditRoute(app, pool)
 
   return app
 }

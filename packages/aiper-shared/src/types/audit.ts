@@ -34,3 +34,23 @@ export interface ChainVerification {
   brokenAtId: number | null
   detail: string
 }
+
+/**
+ * Read shape of an audit row — what /api/v1/audit returns. Extends
+ * AuditEntry with the DB-generated fields (id + occurredAt).
+ */
+export interface AuditEntryRead extends AuditEntry {
+  id: number
+  /** ISO-8601 with offset — matches Postgres timestamptz JSON output. */
+  occurredAt: string
+}
+
+/**
+ * One page of audit rows. nextCursor is an opaque base64url token to
+ * pass back as ?cursor= for the next page; null when the page is the
+ * last.
+ */
+export interface AuditPage {
+  entries: AuditEntryRead[]
+  nextCursor: string | null
+}
