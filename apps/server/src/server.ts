@@ -19,6 +19,7 @@ import { registerAuthAdminRoute } from './routes/auth-admin.js'
 import { registerHierarchyReadRoutes } from './routes/hierarchy/index.js'
 import { registerHierarchyWriteRoutes } from './routes/hierarchy/writes/index.js'
 import { registerSaveFlowRoutes } from './routes/save-flow.js'
+import { registerHistoryRoute } from './routes/history.js'
 import { registerWsRoutes } from './ws/index.js'
 import pkg from '../package.json' with { type: 'json' }
 
@@ -75,6 +76,7 @@ export async function buildServer(config: Config, pool: pg.Pool): Promise<Fastif
   registerHierarchyReadRoutes(app, pool)
   registerHierarchyWriteRoutes(app, pool)
   registerSaveFlowRoutes(app, pool)
+  registerHistoryRoute(app, pool)
   registerWsRoutes(app, pool, config)
 
   return app
