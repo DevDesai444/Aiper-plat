@@ -39,7 +39,10 @@ const BASE_PATH: Record<AiperSubject, string> = {
 export const MemberSchema = z.object({
   userId: z.string().uuid(),
   displayName: z.string(),
-  email: z.string().email(),
+  // Relaxed to plain string — the server stores raw emails and does not
+  // re-validate format on read, so a strict .email() here would reject a
+  // value the server happily returns. Matches E2's server-side shape.
+  email: z.string(),
   role: AiperRoleSchema,
   inherited: z.boolean(),
   source: z
@@ -54,18 +57,23 @@ export type Member = z.infer<typeof MemberSchema>
 /**
  * A pending invitation — an access_grants row keyed by email that will
  * convert to a user-keyed grant on that email's first sign-in
- * (provisionAndClaim in E1's PR-5).
+ * (provisionAndClaim in E1's PR-5). Same rationale as Member.email: no
+ * .email() strictness — mirror what the server actually sends.
  */
 export const InvitationSchema = z.object({
-  email: z.string().email(),
+  email: z.string(),
   role: AiperRoleSchema,
   invitedAt: z.string().datetime({ offset: true }),
   invitedByName: z.string().optional(),
 })
 export type Invitation = z.infer<typeof InvitationSchema>
 
-const MembersResponseSchema = z.object({ items: z.array(MemberSchema) })
-const InvitationsResponseSchema = z.object({ items: z.array(InvitationSchema) })
+// Named envelopes — E2's read routes use `members` / `invitations`, not the
+// generic `items` used by other list endpoints.
+const MembersResponseSchema = z.object({ members: z.array(MemberSchema) })
+const InvitationsResponseSchema = z.object({
+  invitations: z.array(InvitationSchema),
+})
 
 // ─── WRITE response shapes — mirror the server's Zod (permissions.ts / invitations.ts) ──
 
@@ -93,11 +101,11 @@ export async function listMembers(
   subjectId: string,
   signal?: AbortSignal,
 ): Promise<Member[]> {
-  const { items } = await apiFetch(
+  const { members } = await apiFetch(
     `${BASE_PATH[subjectType]}/${subjectId}/members`,
     { schema: MembersResponseSchema, signal },
   )
-  return items
+  return members
 }
 
 export async function listInvitations(
@@ -105,11 +113,11 @@ export async function listInvitations(
   subjectId: string,
   signal?: AbortSignal,
 ): Promise<Invitation[]> {
-  const { items } = await apiFetch(
+  const { invitations } = await apiFetch(
     `${BASE_PATH[subjectType]}/${subjectId}/invitations`,
     { schema: InvitationsResponseSchema, signal },
   )
-  return items
+  return invitations
 }
 
 // ─── Writes ────────────────────────────────────────────────────────────────
