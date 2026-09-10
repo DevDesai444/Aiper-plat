@@ -18,6 +18,7 @@ import { registerAuditRoute } from './routes/audit.js'
 import { registerAuthAdminRoute } from './routes/auth-admin.js'
 import { registerHierarchyReadRoutes } from './routes/hierarchy/index.js'
 import { registerHierarchyWriteRoutes } from './routes/hierarchy/writes/index.js'
+import { registerAccessRoutes } from './routes/hierarchy/access/index.js'
 import { registerSaveFlowRoutes } from './routes/save-flow.js'
 import { registerHistoryRoute } from './routes/history.js'
 import { registerWsRoutes } from './ws/index.js'
@@ -75,6 +76,7 @@ export async function buildServer(config: Config, pool: pg.Pool): Promise<Fastif
   registerAuditRoute(app, pool)
   registerHierarchyReadRoutes(app, pool)
   registerHierarchyWriteRoutes(app, pool)
+  registerAccessRoutes(app, pool)
   registerSaveFlowRoutes(app, pool)
   registerHistoryRoute(app, pool)
   registerWsRoutes(app, pool, config)
