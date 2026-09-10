@@ -54,6 +54,18 @@ const CLOSE_BAD_TOKEN = 4001
 const CLOSE_NO_ACCESS = 4003
 const CLOSE_BAD_REQUEST = 4400
 
+/** Cap the WebSocket frame size well above a realistic Yjs update but
+ *  well below the ws default of 100 MiB — the default is an easy OOM
+ *  vector on a public endpoint. 4 MiB comfortably fits every doc we
+ *  have seen in v1 telemetry. */
+const WS_MAX_PAYLOAD = 4 * 1024 * 1024
+
+/** Ping every 30 s; if a client misses two consecutive pongs (60 s
+ *  wall-clock), assume the socket is half-dead and terminate. Without
+ *  this a client whose TCP stack silently died holds a room open until
+ *  the OS-level keepalive fires (minutes to hours). */
+const WS_PING_INTERVAL_MS = 30_000
+
 function normaliseFrame(data: WebSocket.RawData): Uint8Array {
   // ws may deliver a Buffer, an array of Buffers, or an ArrayBuffer —
   // normalise to one Uint8Array so the registry only speaks one type.
@@ -170,13 +182,42 @@ export function registerWsRoutes(
     await registry.shutdown()
   })
 
+  // Each socket's liveness flag lives in a WeakMap so we do not have to
+  // extend the WebSocket type; on 'pong' we mark alive, on each tick
+  // we mark not-alive and ping, and the next tick terminates anything
+  // still not-alive. Node's ws does not do this on its own.
+  const alive = new WeakMap<WebSocket, boolean>()
+
   // @fastify/websocket registers with Fastify BEFORE any route uses
   // { websocket: true }; safe to await inside this synchronous
   // register function because Fastify serialises plugin registration.
   void app.register(async (scope) => {
-    await scope.register(websocketPlugin)
+    await scope.register(websocketPlugin, {
+      options: { maxPayload: WS_MAX_PAYLOAD },
+    })
+
+    const keepalive = setInterval(() => {
+      for (const ws of scope.websocketServer.clients) {
+        if (alive.get(ws) === false) {
+          ws.terminate()
+          continue
+        }
+        alive.set(ws, false)
+        try {
+          ws.ping()
+        } catch {
+          // socket is dead already; the terminate on next tick catches it
+        }
+      }
+    }, WS_PING_INTERVAL_MS)
+    scope.addHook('onClose', async () => {
+      clearInterval(keepalive)
+    })
 
     scope.get('/ws', { websocket: true }, async (socket, req: FastifyRequest) => {
+      alive.set(socket, true)
+      socket.on('pong', () => alive.set(socket, true))
+
       const parsed = QuerySchema.safeParse(req.query)
       if (!parsed.success) {
         socket.close(CLOSE_BAD_REQUEST, 'bad request')

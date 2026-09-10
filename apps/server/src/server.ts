@@ -22,6 +22,7 @@ import { registerAccessRoutes } from './routes/hierarchy/access/index.js'
 import { registerSaveFlowRoutes } from './routes/save-flow.js'
 import { registerHistoryRoute } from './routes/history.js'
 import { registerWsRoutes } from './ws/index.js'
+import { reqSerializer } from './log-serializers.js'
 import pkg from '../package.json' with { type: 'json' }
 
 /**
@@ -46,6 +47,14 @@ export async function buildServer(config: Config, pool: pg.Pool): Promise<Fastif
               target: 'pino-pretty',
               options: { colorize: true, translateTime: 'SYS:HH:MM:ss.l' },
             },
+      // Override the default `req` serialiser to strip ?token= from
+      // every URL log line. The WS upgrade for /ws carries the
+      // Supabase JWT in its query (browsers cannot set Authorization
+      // on a WebSocket) and Fastify logs req.url at info by default;
+      // without this the bearer lands in the log store on every
+      // connect. See log-serializers.ts for the implementation and
+      // its unit test.
+      serializers: { req: reqSerializer },
     },
   }).withTypeProvider<ZodTypeProvider>()
 

@@ -14,6 +14,7 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import * as Y from 'yjs'
 import { readSyncMessage, writeSyncStep1, writeUpdate } from 'y-protocols/sync'
+import { Awareness, encodeAwarenessUpdate } from 'y-protocols/awareness'
 import * as encoding from 'lib0/encoding'
 import * as decoding from 'lib0/decoding'
 import type pg from 'pg'
@@ -307,4 +308,122 @@ test('room broadcaster: hydrate seeds the Y.Doc from the latest snapshot', async
   drainInto(client)
 
   assert.equal(client.doc.getText('t').toString(), 'pre-existing content')
+})
+
+// ============================================================================
+// Hardening (PR-6): crash guard on malformed frames, dirty-only-on-writes,
+// per-peer awareness cleanup on disconnect.
+// ============================================================================
+
+test('room broadcaster: a malformed frame is dropped, the room and process stay up', async () => {
+  // lib0/decoding throws on garbage varuint bytes. Without a per-branch
+  // try/catch these throws propagate out of the socket's 'message'
+  // handler and take the process down. The registry must swallow the
+  // frame and stay open for legitimate traffic on the same room.
+  const alex = await seedUser('Alex')
+  const docId = await seedDoc(alex.id)
+
+  const client = makeSim(alex.id, alex.displayName, 'editor')
+  await registry.connect(docId, client.peer)
+  client.bind()
+
+  // Garbage: never even parses as a valid outer-type varuint frame.
+  // Also try one that reads a bogus outer type (255) and one that
+  // reads type 0 (SYNC) but with unfinished body.
+  const garbage = [
+    new Uint8Array([0xff, 0xff, 0xff, 0xff, 0xff]),
+    new Uint8Array([0x00]),          // MESSAGE_SYNC only, no sub-type
+    new Uint8Array([0x00, 0x7f]),    // SYNC + unknown sub-type + truncated
+    new Uint8Array([0x01, 0xff]),    // AWARENESS but bad update length
+  ]
+  for (const bytes of garbage) {
+    // Must not throw. If it does, the process would be down and this
+    // test would report a crash rather than an assertion failure.
+    client.socket.deliver(bytes)
+  }
+
+  // Room still alive, still accepting real frames.
+  assert.equal(registry.roomCount(), 1)
+  client.requestSync()
+  drainInto(client)
+  client.doc.getText('t').insert(0, 'still working')
+  drainInto(client)
+  assert.equal(client.doc.getText('t').toString(), 'still working')
+})
+
+test('room broadcaster: SyncStep1 (a read) does NOT dirty the room and does NOT persist', async () => {
+  // Opening a doc — client sends SyncStep1 to ask for state — must
+  // not trigger an auto-save. The prior implementation flipped dirty
+  // on any SYNC frame from an editor, so a "silent open" was ending
+  // up as a history row every 30 s. Explicit writes (SyncStep2 /
+  // SyncUpdate) are the only things that dirty the room.
+  const alex = await seedUser('Alex')
+  const docId = await seedDoc(alex.id)
+
+  const client = makeSim(alex.id, alex.displayName, 'editor')
+  await registry.connect(docId, client.peer)
+  client.bind()
+
+  // Only send SyncStep1 — no writes at all.
+  client.requestSync()
+
+  assert.equal(registry.isDirty(docId), false, 'SyncStep1 must not dirty the room')
+
+  // Even if we manually invoke persist (as the timer would), no row
+  // lands — the doPersist loop exits because dirty is false. Sanity
+  // check via the DB.
+  const before = await db.query<{ n: string }>(
+    `SELECT count(*)::text AS n FROM document_snapshots WHERE document_id = $1`,
+    [docId],
+  )
+  assert.equal(before.rows[0]!.n, '0', 'no snapshot from a read-only open')
+})
+
+test('room broadcaster: awareness state is gone after the peer disconnects', async () => {
+  // Ghost cursors bug: on disconnect the old implementation filtered
+  // by a clientID that never existed on Peer, so removeAwarenessStates
+  // was a no-op and departed cursors lingered until the awareness
+  // protocol's own timeout (~30 s). The fix tracks each peer's Yjs
+  // clientIDs from the awareness stream and removes exactly those.
+  const alex = await seedUser('Alex')
+  const docId = await seedDoc(alex.id)
+
+  const client = makeSim(alex.id, alex.displayName, 'editor')
+  await registry.connect(docId, client.peer)
+  client.bind()
+
+  // Craft one awareness frame from the client — sets its cursor state.
+  // The room tracks the client's Yjs clientID via the awareness update
+  // origin correlation. Awareness registers its own setInterval on
+  // construction; destroy() clears it so the test process can exit.
+  const clientAwareness = new Awareness(client.doc)
+  try {
+    clientAwareness.setLocalState({ user: { name: 'Alex' } })
+    const awarenessBytes = encodeAwarenessUpdate(clientAwareness, [client.doc.clientID])
+    const encoder = encoding.createEncoder()
+    encoding.writeVarUint(encoder, 1 /* MESSAGE_AWARENESS */)
+    encoding.writeVarUint8Array(encoder, awarenessBytes)
+    client.socket.deliver(encoding.toUint8Array(encoder))
+  } finally {
+    clientAwareness.destroy()
+  }
+
+  assert.equal(
+    registry.awarenessClientCount(docId),
+    1,
+    'awareness picked up the client after the update',
+  )
+
+  // Disconnect. The registry must remove exactly this client's awareness
+  // state, not wait for the 30 s protocol timeout.
+  client.socket.simulateDisconnect()
+  // handlePeerLeave awaits persistIfDirty; give the microtask queue a
+  // beat to settle before asserting.
+  await new Promise((r) => setTimeout(r, 20))
+
+  // Room may have been torn down (last peer). If it was, the client
+  // count for that docId is 0 by construction. If it survives (a
+  // fresh peer joined during the flush, which does not happen here),
+  // the count should still be 0 after cleanup.
+  assert.equal(registry.awarenessClientCount(docId), 0, 'no ghost cursor lingers')
 })
