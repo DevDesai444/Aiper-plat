@@ -4,6 +4,7 @@ import { registerOrgWriteRoutes } from './orgs.js'
 import { registerProjectWriteRoutes } from './projects.js'
 import { registerFolderWriteRoutes } from './folders.js'
 import { registerDocumentWriteRoutes } from './documents.js'
+import { registerCommentWriteRoutes } from './comments.js'
 
 /**
  * All hierarchy domain write routes — POST + PATCH on orgs, projects,
@@ -28,4 +29,5 @@ export function registerHierarchyWriteRoutes(app: FastifyInstance, pool: pg.Pool
   registerProjectWriteRoutes(app, pool)
   registerFolderWriteRoutes(app, pool)
   registerDocumentWriteRoutes(app, pool)
+  registerCommentWriteRoutes(app, pool)
 }
