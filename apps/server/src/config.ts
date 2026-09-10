@@ -13,6 +13,7 @@ const ConfigInputSchema = z.object({
     .default('info'),
   SUPABASE_JWKS_URL: z.string().url().optional(),
   SUPABASE_JWT_TEST_SECRET: z.string().min(16).optional(),
+  SUPABASE_JWT_ISSUER: z.string().url().optional(),
 })
 
 /**
@@ -24,6 +25,18 @@ export const ConfigSchema = ConfigInputSchema.refine(
   {
     message:
       'One of SUPABASE_JWKS_URL (production JWKS) or SUPABASE_JWT_TEST_SECRET (HS256 dev fallback) must be set — the server has no way to verify JWTs otherwise. See apps/server/README.md.',
+  },
+).refine(
+  (c) => !(c.SUPABASE_JWKS_URL || c.SUPABASE_JWT_TEST_SECRET) || Boolean(c.SUPABASE_JWT_ISSUER),
+  {
+    // Without an issuer bound, jwtVerify accepts any well-signed token from
+    // the same JWKS — including Supabase's own anon tokens (aud='anon') and
+    // tokens from a sibling project sharing the JWKS. Requiring iss + aud is
+    // what turns "did anyone sign this?" into "did THIS project's Auth server
+    // sign this token for a real end user?".
+    message:
+      "SUPABASE_JWT_ISSUER must be set (and must equal Supabase's Auth issuer, e.g. https://<ref>.supabase.co/auth/v1) whenever a JWT verifier is configured.",
+    path: ['SUPABASE_JWT_ISSUER'],
   },
 )
 

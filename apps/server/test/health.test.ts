@@ -8,6 +8,7 @@ const CONFIG: Config = {
   HOST: '127.0.0.1',
   LOG_LEVEL: 'silent',
   SUPABASE_JWT_TEST_SECRET: 'test-secret-plenty-long-enough-for-hs256',
+  SUPABASE_JWT_ISSUER: 'https://test-project.supabase.co/auth/v1',
 }
 
 test('GET /api/v1/health returns ok + service + version, no auth required', async () => {

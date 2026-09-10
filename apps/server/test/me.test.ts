@@ -5,16 +5,20 @@ import { buildServer } from '../src/server.js'
 import type { Config } from '../src/config.js'
 
 const SECRET = 'test-secret-plenty-long-enough-for-hs256'
+const ISSUER = 'https://test-project.supabase.co/auth/v1'
 const CONFIG: Config = {
   PORT: 8787,
   HOST: '127.0.0.1',
   LOG_LEVEL: 'silent',
   SUPABASE_JWT_TEST_SECRET: SECRET,
+  SUPABASE_JWT_ISSUER: ISSUER,
 }
 
 async function signToken(payload: Record<string, unknown>): Promise<string> {
   return new SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256' })
+    .setIssuer(ISSUER)
+    .setAudience('authenticated')
     .setIssuedAt()
     .setExpirationTime('1h')
     .sign(new TextEncoder().encode(SECRET))
@@ -36,11 +40,14 @@ test('GET /api/v1/me returns 401 + ApiError when no Authorization header', async
 test('GET /api/v1/me returns 401 when the token is signed with the wrong secret', async () => {
   const app = await buildServer(CONFIG)
   try {
+    // iss + aud correct so the ONLY reason to reject is the wrong signature.
     const bad = await new SignJWT({
       sub: '11111111-1111-1111-1111-111111111111',
       email: 'p1@example.com',
     })
       .setProtectedHeader({ alg: 'HS256' })
+      .setIssuer(ISSUER)
+      .setAudience('authenticated')
       .setIssuedAt()
       .setExpirationTime('1h')
       .sign(new TextEncoder().encode('a-completely-different-secret'))
