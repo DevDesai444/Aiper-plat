@@ -12,12 +12,43 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
+
+    # The server test suite (apps/server) talks to a real Postgres via
+    # test/helpers/testdb.ts — it connects to the `postgres` admin db as the
+    # `aiper` superuser, CREATE DATABASEs `aiper_test`, runs migrations, and
+    # truncates between cases. Credentials + port match testDbConfig()'s
+    # local defaults so no per-test env wiring is needed beyond the block
+    # below. Web + shared tests don't touch the DB (MSW / pure Zod).
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: aiper
+          POSTGRES_PASSWORD: aiper_dev
+          POSTGRES_DB: aiper
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U aiper"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: aiper
+      PGPASSWORD: aiper_dev
+      PGDATABASE: aiper
+      TEST_PGDATABASE: aiper_test
+
     steps:
       - uses: actions/checkout@v4
 
+      # No `version:` here — the single source of truth for the pnpm version
+      # is package.json's `packageManager: pnpm@9.15.9`. Setting both makes
+      # pnpm/action-setup@v4 abort with ERR_PNPM_BAD_PM_VERSION.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - uses: actions/setup-node@v4
         with:
