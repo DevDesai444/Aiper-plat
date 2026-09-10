@@ -1,0 +1,162 @@
+/*
+ * Editor-page styles. A trimmed port of legacy/v1/src/renderer/src/editor/
+ * editor.css: just the page-shaped card centred inside the shell's <main>,
+ * and the ProseMirror content styles inside it. Legacy's banner + find/
+ * replace + track-changes + comment-highlight styles port as those features
+ * land (PR-3+).
+ *
+ * Reads from apps/web/src/design/tokens.css:
+ *   --page-bg / --page-text / --page-text-muted / --page-text-faint —
+ *     the light "paper" palette (dark chrome, light document).
+ *   --font-doc — the Times New Roman document face.
+ *
+ * `body { user-select: none }` lives in tokens.css to keep the shell chrome
+ * from feeling text-selectable. `.editor-page-content` and the title re-
+ * enable selection on the surfaces the reader actually reads.
+ */
+
+.editor-shell {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.editor-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--dv);
+  background: var(--chrome);
+  flex: none;
+}
+.editor-titlebar-crumbs {
+  font-size: 11.5px;
+  color: var(--mut);
+}
+.editor-titlebar-crumbs a {
+  color: var(--mut);
+  text-decoration: none;
+}
+.editor-titlebar-crumbs a:hover {
+  color: var(--color-accent);
+}
+.editor-titlebar-title {
+  font-family: var(--font-heading);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  margin: 0;
+  flex: 1 1 auto;
+  color: var(--ink);
+  user-select: text;
+}
+.editor-titlebar-status {
+  font-family: var(--font-label);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--mut2);
+}
+
+.editor-scroll {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 24px;
+  min-height: 0;
+}
+
+/* A4 at 96dpi (794×1123). Geometry preserved from legacy so ported content
+ * styles line up when the ported extensions land. */
+.editor-page {
+  width: 794px;
+  min-height: 1123px;
+  margin: 0 auto;
+  background: var(--page-bg);
+  color: var(--page-text);
+  font-family: var(--font-doc);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  padding: 96px 76px;
+  position: relative;
+}
+
+.editor-page-content {
+  outline: none;
+  min-height: 900px;
+  font-size: 12pt;
+  line-height: 1.5;
+  user-select: text;
+}
+.editor-page-content p {
+  margin: 0 0 10px;
+}
+.editor-page-content h1,
+.editor-page-content h2,
+.editor-page-content h3 {
+  font-family: var(--font-doc);
+  font-weight: 700;
+  margin: 18px 0 8px;
+}
+.editor-page-content h1 {
+  font-size: 20pt;
+}
+.editor-page-content h2 {
+  font-size: 16pt;
+}
+.editor-page-content h3 {
+  font-size: 13pt;
+}
+.editor-page-content ul,
+.editor-page-content ol {
+  padding-left: 26px;
+  margin: 0 0 10px;
+}
+.editor-page-content blockquote {
+  border-left: 3px solid var(--page-text-faint);
+  padding-left: 12px;
+  color: var(--page-text-muted);
+  margin: 0 0 10px;
+}
+.editor-page-content pre {
+  background: color-mix(in srgb, var(--page-text) 4%, transparent);
+  padding: 10px 12px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10.5pt;
+  overflow-x: auto;
+}
+.editor-page-content code {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.94em;
+  background: color-mix(in srgb, var(--page-text) 4%, transparent);
+  padding: 1px 4px;
+}
+.editor-page-content hr {
+  border: none;
+  border-top: 1px solid var(--page-text-faint);
+  margin: 16px 0;
+}
+.editor-page-content a {
+  color: #41627f;
+}
+
+/* Error / not-found card lives in the shell's <main>, not a page card. */
+.editor-fail {
+  padding: 24px 32px;
+  max-width: 720px;
+  color: var(--ink);
+}
+.editor-fail-title {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 20px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 0 0 6px;
+  color: var(--hi);
+}
+.editor-fail-detail {
+  color: var(--mut);
+  font-size: 12px;
+  margin: 0 0 14px;
+}

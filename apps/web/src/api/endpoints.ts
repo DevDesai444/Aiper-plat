@@ -15,7 +15,7 @@ import {
   ProjectSchema,
   SessionUserSchema,
 } from '@aiper/shared/schemas'
-import { apiFetch } from './client'
+import { apiFetch, apiFetchBinary } from './client'
 
 /**
  * Liveness probe. Shape mirrors apps/server/src/routes/health.ts: 200 carries
@@ -101,6 +101,21 @@ export async function listFolderDocuments(
 
 export function getDocument(did: string, signal?: AbortSignal): Promise<Document> {
   return apiFetch(`/api/v1/documents/${did}`, { schema: DocumentSchema, signal })
+}
+
+/**
+ * Fetch the raw Yjs update-stream bytes for one snapshot. Feed the returned
+ * `Uint8Array` straight into `Y.applyUpdate(ydoc, bytes)` — the server stores
+ * whatever bytes `Y.encodeStateAsUpdate` produced at save time, so no wrapper
+ * envelope, no versioning header, no encoding coercion. Access is `viewer+`
+ * (server enforces via `requireDocumentRole`).
+ */
+export function getSnapshotState(
+  did: string,
+  sid: string,
+  signal?: AbortSignal,
+): Promise<Uint8Array> {
+  return apiFetchBinary(`/api/v1/documents/${did}/snapshots/${sid}/state`, signal)
 }
 
 // ─── Hierarchy writes ───────────────────────────────────────────────────────

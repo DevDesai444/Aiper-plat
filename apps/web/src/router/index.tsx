@@ -8,10 +8,10 @@ import { ProjectOverviewPage } from '../pages/ProjectOverviewPage'
 import { FolderViewPage } from '../pages/FolderViewPage'
 import { SettingsPage } from '../pages/SettingsPage'
 import { NotFoundPage } from '../pages/NotFoundPage'
+import { EditorPage } from '../editor/EditorPage'
 import {
   ProductTreePlaceholder,
   CompatDashboardPlaceholder,
-  EditorPlaceholder,
 } from '../pages/placeholders'
 
 /**
@@ -41,7 +41,11 @@ export const router: ReturnType<typeof createBrowserRouter> = createBrowserRoute
       { path: 'p/:pid/tree', element: <ProductTreePlaceholder /> },
       { path: 'p/:pid/compat', element: <CompatDashboardPlaceholder /> },
       { path: 'p/:pid/f/:fid', element: <FolderViewPage /> },
-      { path: 'p/:pid/f/:fid/d/:did', element: <EditorPlaceholder /> },
+      // Both routes render the same EditorPage — folder-parented and
+      // project-parented documents differ by which of `folderId` /
+      // `projectId` is nullable on the payload, not by editor behaviour.
+      { path: 'p/:pid/f/:fid/d/:did', element: <EditorPage /> },
+      { path: 'p/:pid/d/:did', element: <EditorPage /> },
       { path: 'settings', element: <SettingsPage /> },
     ],
   },
