@@ -15,18 +15,9 @@ async function main(): Promise<void> {
     throw err
   }
 
-  if (!config.PGHOST || !config.PGUSER || !config.PGPASSWORD || !config.PGDATABASE) {
-    console.error(
-      'Missing required Postgres config: PGHOST, PGUSER, PGPASSWORD, PGDATABASE.\n' +
-        'See apps/server/.env.example.',
-    )
-    process.exit(1)
-  }
-
-  const dbPort = config.PGPORT ?? 5432
   const pool = buildPool({
     host: config.PGHOST,
-    port: dbPort,
+    port: config.PGPORT,
     user: config.PGUSER,
     password: config.PGPASSWORD,
     database: config.PGDATABASE,
@@ -39,7 +30,7 @@ async function main(): Promise<void> {
       port: config.PORT,
       host: config.HOST,
       jwtMode: config.SUPABASE_JWKS_URL ? 'jwks' : 'hs256',
-      db: `${config.PGHOST}:${dbPort}/${config.PGDATABASE}`,
+      db: `${config.PGHOST}:${config.PGPORT}/${config.PGDATABASE}`,
     },
     'Aiper server listening',
   )

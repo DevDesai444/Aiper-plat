@@ -12,6 +12,13 @@ const CONFIG: Config = {
   LOG_LEVEL: 'silent',
   SUPABASE_JWT_TEST_SECRET: SECRET,
   SUPABASE_JWT_ISSUER: ISSUER,
+  // These me-route tests build buildServer without a pool — the
+  // middleware skips provisioning and returns orgMemberships:[].
+  PGHOST: '127.0.0.1',
+  PGPORT: 5432,
+  PGUSER: 'x',
+  PGPASSWORD: 'x',
+  PGDATABASE: 'x',
 }
 
 async function signToken(payload: Record<string, unknown>): Promise<string> {
