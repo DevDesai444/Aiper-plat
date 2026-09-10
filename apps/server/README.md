@@ -11,17 +11,27 @@ cp .env.example .env      # set SUPABASE_JWT_TEST_SECRET at minimum
 pnpm --filter @aiper/server dev
 ```
 
-The server refuses to start unless one of these two env vars is set:
+The server refuses to start unless BOTH of the following are true:
 
-- `SUPABASE_JWKS_URL` — production JWKS endpoint (e.g.
-  `https://<project>.supabase.co/auth/v1/keys`). RS256 verification via
-  `jose.createRemoteJWKSet`, which caches keys with a built-in TTL.
-- `SUPABASE_JWT_TEST_SECRET` — HS256 shared secret for local dev and CI,
-  so nothing that runs in a container needs a live Supabase project. Any
-  string ≥ 16 characters.
+1. **`SUPABASE_JWT_ISSUER` is set** (always required). This is your
+   project's Auth issuer, e.g.
+   `https://<project-ref>.supabase.co/auth/v1`. Every JWT is checked
+   against this exact issuer AND against `aud='authenticated'` — a token
+   from a sibling project (different `iss`) or a Supabase anon token
+   (`aud='anon'`) will not sign anyone in.
+2. **One of the two verifiers is configured:**
+   - `SUPABASE_JWKS_URL` — production JWKS endpoint (e.g.
+     `https://<project-ref>.supabase.co/auth/v1/keys`). RS256/ES256 via
+     `jose.createRemoteJWKSet`, keys cached with a built-in TTL.
+   - `SUPABASE_JWT_TEST_SECRET` — HS256 shared secret for local dev and
+     CI, so nothing that runs in a container needs a live Supabase
+     project. Any string ≥ 16 characters. **Do not use in production.**
 
-If both are set, `SUPABASE_JWKS_URL` wins. If neither is set, boot fails
-with a clear message pointing here.
+If both `SUPABASE_JWKS_URL` and `SUPABASE_JWT_TEST_SECRET` are set,
+`SUPABASE_JWKS_URL` wins — a leftover test secret in a `.env` cannot
+silently weaken a real deploy. If a verifier is set without
+`SUPABASE_JWT_ISSUER`, or if neither verifier is set, boot fails with a
+clear per-field message.
 
 ## Routes (PR-2)
 

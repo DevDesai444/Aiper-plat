@@ -8,21 +8,27 @@ const BASE_ENV: NodeJS.ProcessEnv = {
   LOG_LEVEL: 'silent',
 }
 
-test('loadConfig accepts JWKS URL alone', () => {
+const ISSUER = 'https://example.supabase.co/auth/v1'
+
+test('loadConfig accepts JWKS URL + issuer', () => {
   const config = loadConfig({
     ...BASE_ENV,
     SUPABASE_JWKS_URL: 'https://example.supabase.co/auth/v1/keys',
+    SUPABASE_JWT_ISSUER: ISSUER,
   })
   assert.equal(config.SUPABASE_JWKS_URL, 'https://example.supabase.co/auth/v1/keys')
+  assert.equal(config.SUPABASE_JWT_ISSUER, ISSUER)
   assert.equal(config.PORT, 8787)
 })
 
-test('loadConfig accepts HS256 test secret alone', () => {
+test('loadConfig accepts HS256 test secret + issuer', () => {
   const config = loadConfig({
     ...BASE_ENV,
     SUPABASE_JWT_TEST_SECRET: 'this-is-a-long-enough-test-secret',
+    SUPABASE_JWT_ISSUER: ISSUER,
   })
   assert.equal(config.SUPABASE_JWT_TEST_SECRET, 'this-is-a-long-enough-test-secret')
+  assert.equal(config.SUPABASE_JWT_ISSUER, ISSUER)
 })
 
 test('loadConfig refuses to boot when neither JWKS URL nor test secret is set', () => {
@@ -37,12 +43,28 @@ test('loadConfig refuses to boot when neither JWKS URL nor test secret is set', 
   )
 })
 
+test('loadConfig refuses when a verifier is set but SUPABASE_JWT_ISSUER is missing', () => {
+  assert.throws(
+    () =>
+      loadConfig({
+        ...BASE_ENV,
+        SUPABASE_JWT_TEST_SECRET: 'this-is-a-long-enough-test-secret',
+      }),
+    (err: unknown) => {
+      assert.ok(err instanceof ConfigError)
+      assert.match(err.message, /SUPABASE_JWT_ISSUER/)
+      return true
+    },
+  )
+})
+
 test('loadConfig refuses malformed values with a clear per-field message', () => {
   assert.throws(
     () =>
       loadConfig({
         ...BASE_ENV,
         SUPABASE_JWT_TEST_SECRET: 'too-short',
+        SUPABASE_JWT_ISSUER: ISSUER,
       }),
     (err: unknown) => {
       assert.ok(err instanceof ConfigError)

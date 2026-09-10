@@ -54,14 +54,23 @@ async function payloadToSessionUser(payload: JWTPayload): Promise<SessionUser> {
 }
 
 /**
+ * Verifier options that jose applies to every jwtVerify call. Bound at build
+ * time — a token whose `iss` does not match this issuer, or whose `aud` is
+ * not 'authenticated', is rejected before we even look at the payload
+ * shape. This is what stops a Supabase anon token (aud='anon') or a token
+ * from a sibling project (different iss) from authenticating a request.
+ */
+const AUDIENCE = 'authenticated' as const
+
+/**
  * Production verifier: pull keys from Supabase's JWKS endpoint. jose caches
  * the keyset internally with a sensible TTL, so we don't roll our own.
  */
-function buildJwksVerifier(url: string): JwtVerifier {
+function buildJwksVerifier(url: string, issuer: string): JwtVerifier {
   const jwks = createRemoteJWKSet(new URL(url))
   return {
     async verify(token) {
-      const { payload } = await jwtVerify(token, jwks)
+      const { payload } = await jwtVerify(token, jwks, { issuer, audience: AUDIENCE })
       return payloadToSessionUser(payload)
     },
   }
@@ -69,13 +78,14 @@ function buildJwksVerifier(url: string): JwtVerifier {
 
 /**
  * Local dev / CI verifier: HS256 with a shared secret. Sufficient to exercise
- * the middleware end-to-end without a live Supabase project.
+ * the middleware end-to-end without a live Supabase project. Same iss + aud
+ * checks apply — the shared secret is not a bypass.
  */
-function buildHmacVerifier(secret: string): JwtVerifier {
+function buildHmacVerifier(secret: string, issuer: string): JwtVerifier {
   const key = new TextEncoder().encode(secret)
   return {
     async verify(token) {
-      const { payload } = await jwtVerify(token, key)
+      const { payload } = await jwtVerify(token, key, { issuer, audience: AUDIENCE })
       return payloadToSessionUser(payload)
     },
   }
@@ -87,8 +97,13 @@ function buildHmacVerifier(secret: string): JwtVerifier {
  * `.env` file does not silently drop back to HS256.
  */
 export function buildVerifier(config: Config): JwtVerifier {
-  if (config.SUPABASE_JWKS_URL) return buildJwksVerifier(config.SUPABASE_JWKS_URL)
-  if (config.SUPABASE_JWT_TEST_SECRET) return buildHmacVerifier(config.SUPABASE_JWT_TEST_SECRET)
+  const issuer = config.SUPABASE_JWT_ISSUER
+  if (!issuer) {
+    // Should be unreachable — loadConfig() rejects this case at boot.
+    throw new Error('SUPABASE_JWT_ISSUER is not set; loadConfig should have caught this.')
+  }
+  if (config.SUPABASE_JWKS_URL) return buildJwksVerifier(config.SUPABASE_JWKS_URL, issuer)
+  if (config.SUPABASE_JWT_TEST_SECRET) return buildHmacVerifier(config.SUPABASE_JWT_TEST_SECRET, issuer)
   // Should be unreachable — loadConfig() rejects this case at boot.
   throw new Error('buildVerifier called without a JWT verifier configured; loadConfig should have caught this.')
 }

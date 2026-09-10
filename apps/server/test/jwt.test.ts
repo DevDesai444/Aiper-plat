@@ -5,16 +5,20 @@ import { buildVerifier } from '../src/auth/jwt.js'
 import type { Config } from '../src/config.js'
 
 const SECRET = 'test-secret-plenty-long-enough-for-hs256'
+const ISSUER = 'https://test-project.supabase.co/auth/v1'
 const CONFIG: Config = {
   PORT: 8787,
   HOST: '127.0.0.1',
   LOG_LEVEL: 'silent',
   SUPABASE_JWT_TEST_SECRET: SECRET,
+  SUPABASE_JWT_ISSUER: ISSUER,
 }
 
 async function signToken(payload: Record<string, unknown>): Promise<string> {
   return new SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256' })
+    .setIssuer(ISSUER)
+    .setAudience('authenticated')
     .setIssuedAt()
     .setExpirationTime('1h')
     .sign(new TextEncoder().encode(SECRET))
@@ -61,6 +65,8 @@ test('a token signed with the wrong secret is rejected', async () => {
     email: 'p1@example.com',
   })
     .setProtectedHeader({ alg: 'HS256' })
+    .setIssuer(ISSUER)
+    .setAudience('authenticated')
     .setIssuedAt()
     .setExpirationTime('1h')
     .sign(new TextEncoder().encode('a-completely-different-secret'))
@@ -77,4 +83,37 @@ test('a token missing sub or email is rejected', async () => {
     sub: '11111111-1111-1111-1111-111111111111',
   })
   await assert.rejects(() => verifier.verify(missingEmail))
+})
+
+test("a token with aud='anon' is rejected (Supabase anon key path is not a session)", async () => {
+  const verifier = buildVerifier(CONFIG)
+  // Signed with the CORRECT secret and CORRECT issuer, so the reject reason
+  // must be the audience mismatch — not the signature.
+  const anon = await new SignJWT({
+    sub: '11111111-1111-1111-1111-111111111111',
+    email: 'p1@example.com',
+  })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuer(ISSUER)
+    .setAudience('anon')
+    .setIssuedAt()
+    .setExpirationTime('1h')
+    .sign(new TextEncoder().encode(SECRET))
+  await assert.rejects(() => verifier.verify(anon))
+})
+
+test('a token from a different Supabase project (different iss) is rejected', async () => {
+  const verifier = buildVerifier(CONFIG)
+  // Correct secret, correct audience — only iss differs.
+  const foreign = await new SignJWT({
+    sub: '11111111-1111-1111-1111-111111111111',
+    email: 'p1@example.com',
+  })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuer('https://other-project.supabase.co/auth/v1')
+    .setAudience('authenticated')
+    .setIssuedAt()
+    .setExpirationTime('1h')
+    .sign(new TextEncoder().encode(SECRET))
+  await assert.rejects(() => verifier.verify(foreign))
 })
