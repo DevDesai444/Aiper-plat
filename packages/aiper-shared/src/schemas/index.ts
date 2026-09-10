@@ -1,0 +1,32 @@
+/**
+ * Runtime validators mirroring the interfaces in ../types. Consumers use
+ * these at trust boundaries — JWT payload parsing, request body parsing,
+ * response validation in tests.
+ *
+ * These schemas MUST stay in sync with ../types. If a field changes,
+ * update both files in the same PR.
+ */
+
+import { z } from 'zod'
+
+export const AiperRoleSchema = z.enum(['viewer', 'editor', 'owner'])
+
+export const AiperSubjectSchema = z.enum(['project', 'folder', 'document'])
+
+export const OrgMembershipSchema = z.object({
+  orgId: z.string().uuid(),
+  role: z.enum(['admin', 'member']),
+})
+
+export const SessionUserSchema = z.object({
+  id: z.string().uuid(),
+  email: z.string().email(),
+  displayName: z.string(),
+  avatarUrl: z.string().nullable(),
+  orgMemberships: z.array(OrgMembershipSchema),
+})
+
+export const ApiErrorSchema = z.object({
+  error: z.string(),
+  code: z.string().optional(),
+})

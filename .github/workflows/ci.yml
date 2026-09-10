@@ -1,0 +1,31 @@
+# Stub CI. E10 owns the real pipeline (build matrix, docker-compose against
+# Postgres, coverage, deploy). This just gates PRs on typecheck + unit tests
+# so we notice interface drift before it reaches main.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm -r typecheck
+
+      - run: pnpm -r test

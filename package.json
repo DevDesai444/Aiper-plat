@@ -1,0 +1,17 @@
+{
+  "name": "aiper",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Aiper — satellite engineering document platform",
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=22.11.0"
+  },
+  "scripts": {
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}
