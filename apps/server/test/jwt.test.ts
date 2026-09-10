@@ -12,6 +12,12 @@ const CONFIG: Config = {
   LOG_LEVEL: 'silent',
   SUPABASE_JWT_TEST_SECRET: SECRET,
   SUPABASE_JWT_ISSUER: ISSUER,
+  // Verifier is DB-free — these values are inert.
+  PGHOST: '127.0.0.1',
+  PGPORT: 5432,
+  PGUSER: 'x',
+  PGPASSWORD: 'x',
+  PGDATABASE: 'x',
 }
 
 async function signToken(payload: Record<string, unknown>): Promise<string> {

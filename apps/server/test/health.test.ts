@@ -9,6 +9,12 @@ const CONFIG: Config = {
   LOG_LEVEL: 'silent',
   SUPABASE_JWT_TEST_SECRET: 'test-secret-plenty-long-enough-for-hs256',
   SUPABASE_JWT_ISSUER: 'https://test-project.supabase.co/auth/v1',
+  // Health test builds without a pool, so these values are inert.
+  PGHOST: '127.0.0.1',
+  PGPORT: 5432,
+  PGUSER: 'x',
+  PGPASSWORD: 'x',
+  PGDATABASE: 'x',
 }
 
 test('GET /api/v1/health returns ok + service + version, no auth required', async () => {

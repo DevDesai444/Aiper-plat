@@ -60,7 +60,7 @@ export async function buildServer(config: Config, pool?: pg.Pool): Promise<Fasti
 
   app.get('/api/v1/openapi.json', { schema: { hide: true } }, async () => app.swagger())
 
-  registerAuthMiddleware(app, buildVerifier(config))
+  registerAuthMiddleware(app, buildVerifier(config), pool)
   registerHealthRoute(app)
   registerMeRoute(app)
   if (pool) registerAuditRoute(app, pool)
