@@ -13,6 +13,11 @@ const ConfigInputSchema = z.object({
     .default('info'),
   SUPABASE_JWKS_URL: z.string().url().optional(),
   SUPABASE_JWT_TEST_SECRET: z.string().min(16).optional(),
+  // Optional. When set, POST /api/v1/auth/signup uses Supabase's admin API
+  // to create users with email_confirm:true — no confirmation email ever
+  // sent, so we're not throttled by Supabase's shared SMTP quota.
+  SUPABASE_URL: z.string().url().optional(),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(20).optional(),
   SUPABASE_JWT_ISSUER: z.string().url().optional(),
   // Postgres — all four are required. PGHOST / PGPORT have sensible
   // defaults; the credentials + database name have none, so Zod fails

@@ -72,23 +72,37 @@ export const useSessionStore = create<SessionState>((set) => ({
 
   signUpWithPassword: async (email, password) => {
     set({ busy: true, error: null })
-    const { data, error } = await supabase.auth.signUp({ email, password })
-    if (error) {
-      set({ busy: false, error: error.message })
-      return
-    }
-    // With `Enable email confirmations` OFF in Supabase Auth → Providers →
-    // Email, `signUp` returns a session immediately and onAuthStateChange
-    // fires with SIGNED_IN — the user is in without touching their inbox.
-    // With confirmations ON, session is null and we surface a "check your
-    // email" message; the user completes signup by clicking the link.
-    if (!data.session) {
+    // Server-side signup path — hits our POST /api/v1/auth/signup, which
+    // uses the Supabase admin API with email_confirm:true. No confirmation
+    // email is ever sent, so we're not throttled by Supabase's shared
+    // SMTP quota. On success we immediately sign in with the same
+    // credentials to get a real session onto the Supabase JS client.
+    try {
+      const res = await fetch('/api/v1/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+        set({ busy: false, error: body.error ?? `Signup failed (${res.status})` })
+        return
+      }
+    } catch (err) {
       set({
         busy: false,
         error:
-          'Account created. Check your email to confirm before signing in ' +
-          '— then come back and use "Sign in with a password".',
+          err instanceof Error
+            ? `Signup request failed: ${err.message}`
+            : 'Signup request failed.',
       })
+      return
+    }
+    // Sign the user in with the credentials they just created. Session
+    // hydration happens in the onAuthStateChange handler.
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) {
+      set({ busy: false, error: `Account created, but sign-in failed: ${error.message}` })
       return
     }
     set({ busy: false })
