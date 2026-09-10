@@ -70,3 +70,8 @@ export * from './hierarchy.js'
 // Blob types (UploadResponse + upload constants) — E2 owns; separate file so
 // the wk-5 blob freeze stays independent of the wk-2 hierarchy freeze.
 export * from './blobs.js'
+
+// Snapshot types (DocumentSnapshot, SnapshotList, SaveRequest,
+// SnapshotReason) — E3 owns; kept in their own file so this barrel does
+// not grow linearly.
+export * from './snapshots.js'
