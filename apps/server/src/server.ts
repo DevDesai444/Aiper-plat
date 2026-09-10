@@ -17,6 +17,7 @@ import { registerMeRoute } from './routes/me.js'
 import { registerAuditRoute } from './routes/audit.js'
 import { registerHierarchyReadRoutes } from './routes/hierarchy/index.js'
 import { registerHierarchyWriteRoutes } from './routes/hierarchy/writes/index.js'
+import { registerSaveFlowRoutes } from './routes/save-flow.js'
 import pkg from '../package.json' with { type: 'json' }
 
 /**
@@ -70,6 +71,7 @@ export async function buildServer(config: Config, pool: pg.Pool): Promise<Fastif
   registerAuditRoute(app, pool)
   registerHierarchyReadRoutes(app, pool)
   registerHierarchyWriteRoutes(app, pool)
+  registerSaveFlowRoutes(app, pool)
 
   return app
 }
