@@ -1,0 +1,198 @@
+/*
+ * Styles for the three PR-1a screens. Kept in one file because these pages
+ * exist as scaffolding for the auth flow; PR-1b's shell chrome will supersede
+ * their layout and this file will absorb into the shell CSS or delete
+ * outright.
+ */
+
+.page-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  color: var(--mut);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.centered-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+/* ---------- Login ---------- */
+
+.login-card {
+  width: 100%;
+  max-width: 360px;
+  background: var(--chrome);
+  border: 1px solid var(--dv);
+  padding: 32px 28px;
+}
+.login-title {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 22px;
+  letter-spacing: 0.08em;
+  color: var(--ink);
+  margin: 0 0 6px;
+  text-transform: uppercase;
+}
+.login-subtitle {
+  color: var(--mut);
+  font-size: 12px;
+  margin: 0 0 24px;
+}
+.login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.login-field label {
+  font-family: var(--font-label);
+  font-size: 11px;
+  color: var(--mut);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.login-field input {
+  background: var(--chrome2);
+  border: 1px solid var(--dv);
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--ink);
+  outline: none;
+}
+.login-field input:focus {
+  border-color: var(--color-accent);
+}
+.login-field-error {
+  color: var(--hi);
+  font-size: 11px;
+}
+.login-submit {
+  width: 100%;
+  background: var(--color-accent);
+  color: var(--deep);
+  padding: 10px;
+  font-family: var(--font-label);
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border: none;
+  cursor: pointer;
+  margin-top: 8px;
+}
+.login-submit:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.login-toggle {
+  background: none;
+  border: none;
+  color: var(--color-accent);
+  font-size: 12px;
+  margin-top: 14px;
+  cursor: pointer;
+  padding: 0;
+}
+.login-error {
+  border: 1px solid color-mix(in srgb, var(--hi) 45%, transparent);
+  color: var(--hi);
+  font-size: 12px;
+  padding: 8px 10px;
+  margin-bottom: 14px;
+}
+.login-info {
+  border: 1px solid color-mix(in srgb, var(--color-accent) 45%, transparent);
+  color: var(--color-accent);
+  font-size: 12px;
+  padding: 8px 10px;
+  margin-bottom: 14px;
+}
+
+/* ---------- Dashboard ---------- */
+
+.dashboard {
+  padding: 32px;
+  color: var(--ink);
+  max-width: 720px;
+  margin: 0 auto;
+}
+.dashboard-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--dv);
+  padding-bottom: 12px;
+  margin-bottom: 24px;
+}
+.dashboard-title {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 20px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 0;
+}
+.dashboard-sub {
+  color: var(--mut);
+  font-size: 12px;
+}
+.dashboard-section {
+  margin-bottom: 20px;
+}
+.dashboard-section-label {
+  font-family: var(--font-label);
+  font-size: 11px;
+  color: var(--mut);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+}
+.dashboard-value {
+  font-size: 13px;
+  font-family: var(--font-body);
+}
+.dashboard-muted {
+  color: var(--mut);
+  font-size: 12px;
+  font-style: italic;
+}
+.dashboard-error {
+  border: 1px solid color-mix(in srgb, var(--hi) 45%, transparent);
+  color: var(--hi);
+  font-size: 12px;
+  padding: 8px 10px;
+}
+.dashboard-signout {
+  background: none;
+  border: 1px solid var(--dv);
+  color: var(--ink);
+  font-size: 12px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.dashboard-signout:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+/* ---------- Not found ---------- */
+
+.notfound {
+  text-align: center;
+  color: var(--mut);
+}
+.notfound-code {
+  font-family: var(--font-heading);
+  font-size: 48px;
+  color: var(--ink);
+  margin: 0 0 6px;
+}
