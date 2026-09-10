@@ -2,6 +2,8 @@ import type { FastifyInstance } from 'fastify'
 import type pg from 'pg'
 import { registerPermissionRoutes } from './permissions.js'
 import { registerInvitationRoutes } from './invitations.js'
+import { registerMembersReadRoute } from './members.js'
+import { registerPendingInvitationsReadRoute } from './pending-invitations.js'
 
 /**
  * All access-management routes: 12 endpoints across 3 subject types
@@ -21,4 +23,15 @@ export function registerAccessRoutes(app: FastifyInstance, pool: pg.Pool): void 
   registerInvitationRoutes(app, pool, 'project',  'pid', '/api/v1/projects')
   registerInvitationRoutes(app, pool, 'folder',   'fid', '/api/v1/folders')
   registerInvitationRoutes(app, pool, 'document', 'did', '/api/v1/documents')
+
+  // GET reads — Share dialog fills its rows from these. viewer+ for
+  // members (everyone with access can see the list); owner-only for
+  // pending invitations (email addresses are sensitive).
+  registerMembersReadRoute(app, pool, 'project',  'pid', '/api/v1/projects')
+  registerMembersReadRoute(app, pool, 'folder',   'fid', '/api/v1/folders')
+  registerMembersReadRoute(app, pool, 'document', 'did', '/api/v1/documents')
+
+  registerPendingInvitationsReadRoute(app, pool, 'project',  'pid', '/api/v1/projects')
+  registerPendingInvitationsReadRoute(app, pool, 'folder',   'fid', '/api/v1/folders')
+  registerPendingInvitationsReadRoute(app, pool, 'document', 'did', '/api/v1/documents')
 }
