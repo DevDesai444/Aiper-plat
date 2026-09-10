@@ -21,7 +21,6 @@ interface SessionState {
 
   signInWithPassword: (email: string, password: string) => Promise<void>
   signUpWithPassword: (email: string, password: string) => Promise<void>
-  signInWithMagicLink: (email: string) => Promise<void>
   signOut: () => Promise<void>
   /**
    * Wire the store to `supabase.auth.onAuthStateChange` and prime it with
@@ -93,15 +92,6 @@ export const useSessionStore = create<SessionState>((set) => ({
       return
     }
     set({ busy: false })
-  },
-
-  signInWithMagicLink: async (email) => {
-    set({ busy: true, error: null })
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: `${window.location.origin}/` },
-    })
-    set({ busy: false, error: error?.message ?? null })
   },
 
   signOut: async () => {
