@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import type pg from 'pg'
-import type { AuditEntry, ChainVerification } from '@aiper/shared/types'
+import type { AuditEntry, AuditEntryRead, AuditPage, ChainVerification } from '@aiper/shared/types'
 
 /**
  * Chain integrity depends on writer and verifier agreeing byte-for-byte
@@ -159,4 +159,141 @@ export async function verifyAuditChain(pool: pg.Pool): Promise<ChainVerification
     brokenAtId: null,
     detail: `All ${rows.rows.length} audit records verified; chain intact.`,
   }
+}
+
+// ============================================================================
+// Read-side: /api/v1/audit list endpoint
+// ============================================================================
+
+/** Filters accepted by the read endpoint. All optional. */
+export interface AuditReadFilters {
+  subjectType?: 'project' | 'folder' | 'document'
+  subjectId?: string
+  userId?: string
+  action?: string
+  /** ISO-8601 with offset. */
+  before?: string
+  limit?: number
+  /** Opaque cursor from a previous page's nextCursor. */
+  cursor?: string
+}
+
+/**
+ * Encode a page cursor. Format is base64url("id:<lastId>") — opaque to
+ * the client, easy to inspect on the server side if we ever need to.
+ * Keyset pagination on id DESC means the cursor is stable under
+ * concurrent inserts (a newer row with a larger id comes back on the
+ * PREVIOUS page, not somewhere weird in the middle of an already-
+ * fetched page).
+ */
+export function encodeCursor(id: number): string {
+  return Buffer.from(`id:${id}`).toString('base64url')
+}
+
+export function decodeCursor(cursor: string): number | null {
+  try {
+    const decoded = Buffer.from(cursor, 'base64url').toString('utf8')
+    const m = decoded.match(/^id:(\d+)$/)
+    return m ? Number(m[1]) : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Read one page of audit rows scoped to what the requester can see.
+ *
+ * The caller decides how to scope:
+ *   - subjectType + subjectId both set: caller was already verified as
+ *     viewer+ on that subject by the route handler. This function only
+ *     filters by that subject; it does NOT re-check access.
+ *   - either absent: the query returns entries the requester owns OR
+ *     can reach through aiper_effective_access — one WHERE clause using
+ *     an OR of user_id + the resolver, so a single index-friendly scan.
+ *
+ * Optional filters (userId, action, before) narrow further. Pagination
+ * is keyset on id DESC so concurrent inserts do not skip or duplicate
+ * rows across pages.
+ */
+export async function readAuditPage(
+  pool: pg.Pool,
+  requesterId: string,
+  filters: AuditReadFilters,
+): Promise<AuditPage> {
+  const limit = Math.min(Math.max(filters.limit ?? 50, 1), 200)
+  const cursorId = filters.cursor ? decodeCursor(filters.cursor) : null
+
+  const conditions: string[] = []
+  const params: unknown[] = []
+  const $$ = (v: unknown): string => {
+    params.push(v)
+    return `$${params.length}`
+  }
+
+  if (filters.subjectType && filters.subjectId) {
+    // Access was already verified by the route; just filter to this subject.
+    conditions.push(`subject_type = ${$$(filters.subjectType)}::aiper_subject`)
+    conditions.push(`subject_id = ${$$(filters.subjectId)}`)
+  } else {
+    // Own actions, or actions on any subject the caller can reach.
+    // Same $N referenced twice to avoid duplicating the parameter.
+    const req = $$(requesterId)
+    conditions.push(
+      `(user_id = ${req} OR aiper_effective_access(${req}, subject_type, subject_id) IS NOT NULL)`,
+    )
+  }
+
+  if (filters.userId) conditions.push(`user_id = ${$$(filters.userId)}`)
+  if (filters.action) conditions.push(`action = ${$$(filters.action)}`)
+  if (filters.before) conditions.push(`occurred_at < ${$$(filters.before)}`)
+  if (cursorId !== null) conditions.push(`id < ${$$(cursorId)}`)
+
+  const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+  // Fetch one extra row to know whether a next page exists without a
+  // separate COUNT.
+  const sql = `
+    SELECT id, occurred_at, user_id, printed_name, action, subject_type, subject_id,
+           revision_before, revision_after, old_value, new_value, reason
+      FROM audit_log
+      ${whereClause}
+     ORDER BY id DESC
+     LIMIT ${$$(limit + 1)}
+  `
+
+  const r = await pool.query<{
+    id: string
+    occurred_at: Date
+    user_id: string
+    printed_name: string
+    action: string
+    subject_type: 'project' | 'folder' | 'document'
+    subject_id: string
+    revision_before: number | string | null
+    revision_after: number | string | null
+    old_value: unknown
+    new_value: unknown
+    reason: string | null
+  }>(sql, params)
+
+  const hasMore = r.rowCount !== null && r.rowCount > limit
+  const rows = hasMore ? r.rows.slice(0, limit) : r.rows
+
+  const entries: AuditEntryRead[] = rows.map((row) => ({
+    id: Number(row.id),
+    occurredAt: row.occurred_at.toISOString(),
+    userId: row.user_id,
+    printedName: row.printed_name,
+    action: row.action,
+    subjectType: row.subject_type,
+    subjectId: row.subject_id,
+    revisionBefore: row.revision_before == null ? null : Number(row.revision_before),
+    revisionAfter: row.revision_after == null ? null : Number(row.revision_after),
+    oldValue: row.old_value,
+    newValue: row.new_value,
+    reason: row.reason,
+  }))
+
+  const lastEntry = entries[entries.length - 1]
+  const nextCursor = hasMore && lastEntry ? encodeCursor(lastEntry.id) : null
+  return { entries, nextCursor }
 }

@@ -30,11 +30,32 @@ export async function runMigrations(pool: pg.Pool, migrationsDir: string): Promi
     .filter((f) => /^\d{3,}_.+\.sql$/.test(f))
     .sort()
 
-  const alreadyApplied = new Set(
-    (await pool.query<{ version: string }>('SELECT version FROM schema_migrations')).rows.map(
-      (r) => r.version,
-    ),
+  const alreadyAppliedRows = await pool.query<{ version: string; checksum: string }>(
+    'SELECT version, checksum FROM schema_migrations',
   )
+  const alreadyApplied = new Map(alreadyAppliedRows.rows.map((r) => [r.version, r.checksum]))
+
+  // Drift detection: recompute sha256 of every already-applied migration
+  // file on disk and compare to the recorded checksum. If any drifted,
+  // refuse to boot. Rationale: someone edits an applied migration file
+  // in place, the runner would otherwise silently skip it (already
+  // recorded) and prod would forever diverge from dev. Fail loud, fail
+  // named.
+  for (const file of files) {
+    const storedChecksum = alreadyApplied.get(file)
+    if (storedChecksum === undefined) continue // not applied yet — the loop below applies it
+    const disk = await readFile(join(migrationsDir, file), 'utf8')
+    const diskChecksum = createHash('sha256').update(disk).digest('hex')
+    if (diskChecksum !== storedChecksum) {
+      throw new Error(
+        `Migration ${file} was modified after being applied.\n` +
+          `  Stored checksum: ${storedChecksum}\n` +
+          `  On-disk sha256:  ${diskChecksum}\n` +
+          `Migrations are immutable once applied. Revert the edits to ${file}, ` +
+          `or write a NEW migration that changes the schema forward.`,
+      )
+    }
+  }
 
   const applied: string[] = []
   const skipped: string[] = []

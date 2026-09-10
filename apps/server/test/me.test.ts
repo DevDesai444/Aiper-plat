@@ -1,24 +1,42 @@
-import { test } from 'node:test'
+import { after, before, beforeEach, test } from 'node:test'
 import assert from 'node:assert/strict'
 import { SignJWT } from 'jose'
+import type pg from 'pg'
 import { buildServer } from '../src/server.js'
 import type { Config } from '../src/config.js'
+import { setupTestDb, teardownTestDb, testDbConfig, truncateAll } from './helpers/testdb.js'
 
 const SECRET = 'test-secret-plenty-long-enough-for-hs256'
 const ISSUER = 'https://test-project.supabase.co/auth/v1'
-const CONFIG: Config = {
-  PORT: 8787,
-  HOST: '127.0.0.1',
-  LOG_LEVEL: 'silent',
-  SUPABASE_JWT_TEST_SECRET: SECRET,
-  SUPABASE_JWT_ISSUER: ISSUER,
-  // These me-route tests build buildServer without a pool — the
-  // middleware skips provisioning and returns orgMemberships:[].
-  PGHOST: '127.0.0.1',
-  PGPORT: 5432,
-  PGUSER: 'x',
-  PGPASSWORD: 'x',
-  PGDATABASE: 'x',
+
+let db: pg.Pool
+before(async () => {
+  db = await setupTestDb()
+})
+after(async () => {
+  await teardownTestDb(db)
+})
+beforeEach(async () => {
+  // /me now provisions users on first-seen JWT. Wipe between cases so
+  // a hardcoded email from one test does not collide with a fixture in
+  // another file that already ran.
+  await truncateAll(db)
+})
+
+function buildConfig(): Config {
+  const t = testDbConfig()
+  return {
+    PORT: 0,
+    HOST: '127.0.0.1',
+    LOG_LEVEL: 'silent',
+    SUPABASE_JWT_TEST_SECRET: SECRET,
+    SUPABASE_JWT_ISSUER: ISSUER,
+    PGHOST: t.host,
+    PGPORT: t.port,
+    PGUSER: t.user,
+    PGPASSWORD: t.password,
+    PGDATABASE: t.database,
+  }
 }
 
 async function signToken(payload: Record<string, unknown>): Promise<string> {
@@ -32,7 +50,7 @@ async function signToken(payload: Record<string, unknown>): Promise<string> {
 }
 
 test('GET /api/v1/me returns 401 + ApiError when no Authorization header', async () => {
-  const app = await buildServer(CONFIG)
+  const app = await buildServer(buildConfig(), db)
   try {
     const res = await app.inject({ method: 'GET', url: '/api/v1/me' })
     assert.equal(res.statusCode, 401)
@@ -45,7 +63,7 @@ test('GET /api/v1/me returns 401 + ApiError when no Authorization header', async
 })
 
 test('GET /api/v1/me returns 401 when the token is signed with the wrong secret', async () => {
-  const app = await buildServer(CONFIG)
+  const app = await buildServer(buildConfig(), db)
   try {
     // iss + aud correct so the ONLY reason to reject is the wrong signature.
     const bad = await new SignJWT({
@@ -70,7 +88,7 @@ test('GET /api/v1/me returns 401 when the token is signed with the wrong secret'
 })
 
 test('GET /api/v1/me returns the SessionUser when a valid JWT is presented', async () => {
-  const app = await buildServer(CONFIG)
+  const app = await buildServer(buildConfig(), db)
   try {
     const token = await signToken({
       sub: '11111111-1111-1111-1111-111111111111',

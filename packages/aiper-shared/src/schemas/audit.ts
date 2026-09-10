@@ -36,3 +36,13 @@ export const ChainVerificationSchema = z.object({
   brokenAtId: z.number().int().nullable(),
   detail: z.string(),
 })
+
+export const AuditEntryReadSchema = AuditEntrySchema.extend({
+  id: z.number().int().nonnegative(),
+  occurredAt: z.string().datetime({ offset: true }),
+})
+
+export const AuditPageSchema = z.object({
+  entries: z.array(AuditEntryReadSchema),
+  nextCursor: z.string().nullable(),
+})
