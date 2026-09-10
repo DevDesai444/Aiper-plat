@@ -1,0 +1,227 @@
+/*
+ * <Modal> + <ShareDialog> styles. Tokens.css supplies every color / font /
+ * size — a theme swap stays a one-file change.
+ */
+
+/* ---------- Modal primitive ---------- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.modal-card {
+  background: var(--chrome);
+  border: 1px solid var(--dv);
+  max-width: 520px;
+  width: 100%;
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.modal-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 18px 20px 12px;
+  border-bottom: 1px solid var(--dv2);
+}
+.modal-title {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: 0;
+  color: var(--ink);
+}
+.modal-sub {
+  color: var(--mut);
+  font-size: 11.5px;
+  margin: 4px 0 0;
+}
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--mut);
+  font-size: 20px;
+  line-height: 1;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+.modal-close:hover {
+  color: var(--ink);
+}
+.modal-body {
+  padding: 12px 20px 20px;
+  overflow-y: auto;
+}
+
+/* ---------- Share dialog ---------- */
+.share-section {
+  margin-top: 14px;
+}
+.share-section-label {
+  font-family: var(--font-label);
+  font-size: 10px;
+  color: var(--mut);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+}
+.share-loading,
+.share-empty {
+  color: var(--mut2);
+  font-size: 12px;
+  padding: 8px 0;
+  font-style: italic;
+}
+.share-error {
+  border: 1px solid color-mix(in srgb, var(--hi) 45%, transparent);
+  color: var(--hi);
+  font-size: 12px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+}
+.share-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--dv2);
+}
+.share-row:first-child {
+  border-top: none;
+}
+.share-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.share-row-name {
+  color: var(--ink);
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.share-row-sub {
+  color: var(--mut);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.share-role {
+  background: var(--chrome2);
+  border: 1px solid var(--dv);
+  color: var(--ink);
+  font-size: 12px;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+.share-role:disabled {
+  cursor: default;
+  opacity: 0.75;
+}
+.share-role-static {
+  color: var(--mut);
+  font-size: 12px;
+  font-family: var(--font-label);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.share-inherited-tag {
+  color: var(--mut2);
+  font-size: 10px;
+  font-family: var(--font-label);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border: 1px solid var(--dv);
+  padding: 2px 6px;
+}
+.share-remove {
+  background: none;
+  border: 1px solid var(--dv);
+  color: var(--mut);
+  font-size: 11px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+.share-remove:hover:not(:disabled) {
+  color: var(--hi);
+  border-color: color-mix(in srgb, var(--hi) 45%, transparent);
+}
+.share-remove:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.share-row-error {
+  color: var(--hi);
+  font-size: 11px;
+  padding: 4px 0 8px;
+}
+.share-invite {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+  margin-top: 8px;
+}
+.share-invite input {
+  flex: 1;
+  min-width: 0;
+  background: var(--chrome2);
+  border: 1px solid var(--dv);
+  color: var(--ink);
+  font-size: 13px;
+  padding: 8px 10px;
+  outline: none;
+}
+.share-invite input:focus {
+  border-color: var(--color-accent);
+}
+.share-invite select {
+  background: var(--chrome2);
+  border: 1px solid var(--dv);
+  color: var(--ink);
+  font-size: 12px;
+  padding: 4px 6px;
+}
+.share-invite button {
+  background: var(--color-accent);
+  color: #10141a;
+  border: none;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.share-invite button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* Button that opens the Share dialog from a page header. */
+.share-open-btn {
+  background: none;
+  border: 1px solid var(--dv);
+  color: var(--ink);
+  font-size: 11px;
+  font-family: var(--font-label);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+.share-open-btn:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
