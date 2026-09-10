@@ -61,3 +61,8 @@ export interface ApiError {
 // Audit chain types (AuditEntry, ChainVerification) — E1 owns; kept in
 // their own file so this barrel does not grow linearly.
 export * from './audit.js'
+
+// Hierarchy types (Organization, Project, Folder, Document, ProjectFolderTree,
+// Comment) — E2 owns; kept in their own file so the two teams don't collide
+// on this barrel every week.
+export * from './hierarchy.js'
