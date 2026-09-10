@@ -1,92 +1,65 @@
 import { useEffect, useState } from 'react'
-import { useSessionStore } from '../auth/sessionStore'
-import { getHealth, type Health } from '../api/endpoints'
+import { Link } from 'react-router-dom'
+import type { Organization } from '@aiper/shared/types'
+import { listOrgs } from '../api/endpoints'
 import { ApiFetchError } from '../api/client'
+import { useSessionStore } from '../auth/sessionStore'
 import './pages.css'
 
 /**
- * PR-1a landing page. Exists only to prove auth end-to-end:
- *   1. `/api/v1/me` was hit by the sessionStore during hydration (user is here)
- *   2. `/api/v1/health` is hit on mount (public endpoint — no bearer needed
- *      but a good smoke test of the fetch wrapper and dev proxy)
- * PR-1b replaces this with the real dashboard rail.
+ * Landing page after sign-in. Lists the caller's organizations; clicking one
+ * jumps to /orgs/:oid where the project list lives. A one-hop indirection —
+ * flattening orgs + projects onto Dashboard would need a fetch per org and
+ * hides how the hierarchy actually walks.
  */
 export function DashboardPage() {
   const user = useSessionStore((s) => s.user)
-  const signOut = useSessionStore((s) => s.signOut)
-
-  const [health, setHealth] = useState<Health | null>(null)
-  const [healthError, setHealthError] = useState<string | null>(null)
+  const [orgs, setOrgs] = useState<Organization[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const ac = new AbortController()
-    getHealth(ac.signal)
-      .then(setHealth)
+    listOrgs(ac.signal)
+      .then(setOrgs)
       .catch((err: unknown) => {
         if (ac.signal.aborted) return
-        setHealthError(
+        setError(
           err instanceof ApiFetchError
             ? `${err.status} ${err.message}`
             : err instanceof Error
               ? err.message
-              : 'Could not reach the server.',
+              : 'Could not load organizations.',
         )
       })
     return () => ac.abort()
   }, [])
 
   return (
-    <div className="dashboard">
-      <div className="dashboard-header">
-        <div>
-          <h1 className="dashboard-title">Dashboard</h1>
-          <p className="dashboard-sub">PR-1a scaffold — real UI lands in PR-1b</p>
-        </div>
-        <button type="button" className="dashboard-signout" onClick={() => void signOut()}>
-          Sign out
-        </button>
-      </div>
+    <div className="page">
+      <header className="page-header">
+        <h1 className="page-title">Dashboard</h1>
+        <p className="page-sub">
+          {user ? `Signed in as ${user.displayName} <${user.email}>` : 'Not signed in'}
+        </p>
+      </header>
 
-      <section className="dashboard-section">
-        <div className="dashboard-section-label">Signed in as</div>
-        <div className="dashboard-value">
-          {user ? (
-            <>
-              {user.displayName} &lt;{user.email}&gt;
-            </>
-          ) : (
-            <span className="dashboard-muted">No user hydrated</span>
-          )}
-        </div>
-      </section>
-
-      <section className="dashboard-section">
-        <div className="dashboard-section-label">Org memberships</div>
-        <div className="dashboard-value">
-          {user && user.orgMemberships.length > 0 ? (
-            <ul style={{ margin: 0, paddingLeft: 18 }}>
-              {user.orgMemberships.map((m) => (
-                <li key={m.orgId}>
-                  {m.orgId} — {m.role}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <span className="dashboard-muted">None yet</span>
-          )}
-        </div>
-      </section>
-
-      <section className="dashboard-section">
-        <div className="dashboard-section-label">Server health</div>
-        {healthError ? (
-          <div className="dashboard-error">{healthError}</div>
-        ) : health ? (
-          <div className="dashboard-value">
-            {health.service} v{health.version} — ok
-          </div>
+      <section className="page-section">
+        <div className="page-section-label">Organizations</div>
+        {error ? (
+          <div className="page-error">{error}</div>
+        ) : orgs === null ? (
+          <p className="page-muted">Loading…</p>
+        ) : orgs.length === 0 ? (
+          <p className="page-muted">You are not a member of any organizations yet.</p>
         ) : (
-          <div className="dashboard-muted">Checking…</div>
+          <div className="card-list">
+            {orgs.map((org) => (
+              <Link key={org.id} to={`/orgs/${org.id}`} className="card">
+                <span className="card-title">{org.name}</span>
+                <span className="card-sub">{org.slug}</span>
+              </Link>
+            ))}
+          </div>
         )}
       </section>
     </div>

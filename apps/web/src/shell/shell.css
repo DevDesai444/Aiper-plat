@@ -1,0 +1,524 @@
+/*
+ * Shell chrome styles for PR-1b. Ported from legacy App.css, editor and
+ * dialog styles omitted (they belong to E7's editor and its dialogs). All
+ * dimensions and colors read from tokens.css — a theme swap stays a single
+ * -file change.
+ */
+
+/* ---------- App grid ---------- */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  background: var(--deep);
+  overflow: hidden;
+}
+.app-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+.app-center {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  background: var(--deep);
+  position: relative;
+}
+
+/* ---------- Title bar ---------- */
+.titlebar {
+  height: var(--titlebar-h);
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 10px 0 14px;
+  background: var(--chrome);
+  border-bottom: 1px solid var(--dv);
+}
+.titlebar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+}
+.titlebar-brand {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  color: var(--ink);
+}
+.titlebar-center {
+  flex: 1;
+  min-width: 0;
+}
+.titlebar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+}
+.titlebar-avatar {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-family: var(--font-heading);
+  border: 1px solid var(--dv);
+  color: var(--mut);
+  cursor: pointer;
+}
+.titlebar-avatar:hover {
+  border-color: var(--color-accent);
+  color: var(--ink);
+}
+
+/* ---------- Tab bar ---------- */
+.tabbar {
+  height: var(--tabbar-h);
+  flex: none;
+  display: flex;
+  align-items: stretch;
+  background: var(--chrome);
+  border-bottom: 1px solid var(--dv);
+  padding: 0 8px;
+}
+.tabbar-tabs {
+  display: flex;
+  align-items: stretch;
+  overflow-x: auto;
+}
+.tabbar-tab {
+  font-family: var(--font-heading);
+  font-size: 12px;
+  padding: 0 12px;
+  color: var(--mut2);
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+}
+.tabbar-tab:hover {
+  color: var(--ink);
+}
+.tabbar-tab.is-active {
+  color: var(--ink);
+  background: var(--chrome2);
+  border-bottom-color: var(--color-accent);
+}
+.tabbar-tab.is-compat {
+  color: var(--color-accent);
+}
+.tabbar-ribbon-toggle {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--mut);
+  padding: 0 10px;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.tabbar-ribbon-toggle:hover {
+  color: var(--ink);
+}
+
+/* ---------- Ribbon ---------- */
+.ribbon {
+  height: var(--ribbon-h);
+  flex: none;
+  display: flex;
+  align-items: stretch;
+  background: var(--chrome2);
+  border-bottom: 1px solid var(--dv);
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.ribbon-group {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 6px 10px 4px;
+  border-right: 1px solid var(--dv2);
+  flex: none;
+}
+.ribbon-group-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  flex: 1;
+}
+.ribbon-group-big {
+  display: flex;
+  gap: 4px;
+}
+.ribbon-big-btn {
+  width: 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 2px;
+  color: var(--mut);
+  text-align: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.ribbon-big-btn span {
+  font-size: 10px;
+  line-height: 1.15;
+}
+.ribbon-big-btn:hover {
+  background: var(--dv2);
+  color: var(--ink);
+}
+.ribbon-group-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ribbon-row {
+  display: flex;
+  gap: 2px;
+}
+.ribbon-small-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 6px;
+  font-size: 10.5px;
+  color: var(--mut);
+  white-space: nowrap;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.ribbon-small-btn:hover {
+  background: var(--dv2);
+  color: var(--ink);
+}
+.ribbon-select {
+  background: var(--chrome);
+  border: 1px solid var(--dv);
+  padding: 3px 4px;
+  font-size: 10.5px;
+  color: var(--ink);
+  height: 20px;
+}
+.ribbon-select--narrow {
+  padding: 3px 2px;
+}
+.ribbon-glyph-btn {
+  width: 22px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-doc);
+  font-size: 13px;
+  color: var(--mut);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.ribbon-glyph-btn:hover {
+  background: var(--dv2);
+  color: var(--ink);
+}
+.ribbon-glyph-btn[data-style='bold'] {
+  font-weight: 700;
+}
+.ribbon-glyph-btn[data-style='italic'] {
+  font-style: italic;
+}
+.ribbon-glyph-btn[data-style='underline'] {
+  text-decoration: underline;
+}
+.ribbon-glyph-btn[data-style='strike'] {
+  text-decoration: line-through;
+}
+.ribbon-group-label {
+  font-family: var(--font-label);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--mut2);
+  text-align: center;
+  margin-top: 4px;
+}
+
+/* ---------- Navigator ---------- */
+.navigator {
+  width: var(--navigator-w);
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  background: var(--chrome);
+  border-right: 1px solid var(--dv);
+  min-height: 0;
+}
+.navigator--collapsed {
+  width: var(--navigator-collapsed-w);
+  align-items: center;
+  padding-top: 8px;
+  gap: 10px;
+}
+.navigator-expand-btn {
+  color: var(--mut);
+  padding: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.navigator-expand-btn:hover {
+  color: var(--ink);
+}
+.navigator-collapsed-label {
+  writing-mode: vertical-rl;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mut2);
+}
+.navigator-header {
+  height: 32px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--dv2);
+}
+.navigator-title {
+  font-family: var(--font-label);
+  font-size: 10.5px;
+  color: var(--mut);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.navigator-header-spacer {
+  flex: 1;
+}
+.navigator-header button {
+  color: var(--mut);
+  padding: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.navigator-header button:hover {
+  color: var(--ink);
+}
+.navigator-filter {
+  height: 32px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  color: var(--mut2);
+  font-size: 11px;
+  border-bottom: 1px solid var(--dv2);
+}
+.navigator-filter input {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--ink);
+  font: inherit;
+}
+.navigator-filter input::placeholder {
+  color: var(--mut2);
+}
+.navigator-filter input::-webkit-search-cancel-button {
+  display: none;
+}
+.navigator-filter button {
+  flex: none;
+  display: flex;
+  align-items: center;
+  background: none;
+  border: none;
+  color: var(--mut2);
+  cursor: pointer;
+  padding: 2px;
+}
+.navigator-filter button:hover {
+  color: var(--ink);
+}
+.navigator-body {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+.navigator-empty {
+  padding: 20px 12px;
+  color: var(--mut2);
+  font-size: 11.5px;
+  text-align: center;
+}
+.navigator-error {
+  color: var(--hi);
+}
+
+/* ---------- Tree rows ---------- */
+.tree-list {
+  padding: 4px 0;
+}
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding-right: 8px;
+  color: var(--mut);
+  font-size: 11.5px;
+  border-left: 2px solid transparent;
+  cursor: pointer;
+}
+.tree-row:hover {
+  background: var(--dv2);
+}
+.tree-row.is-selected {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+  border-left-color: var(--color-accent);
+}
+.tree-caret-btn {
+  display: flex;
+  align-items: center;
+  color: var(--mut2);
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.tree-caret-spacer {
+  width: 11px;
+  flex: none;
+}
+.tree-icon {
+  flex: none;
+  opacity: 0.7;
+}
+.tree-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+/* ---------- Dock ---------- */
+.dock {
+  width: var(--dock-w);
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  background: var(--chrome);
+  border-left: 1px solid var(--dv);
+  min-height: 0;
+}
+.dock--collapsed {
+  width: var(--dock-collapsed-w);
+  align-items: center;
+  padding-top: 8px;
+  gap: 10px;
+}
+.dock-collapsed-label {
+  writing-mode: vertical-rl;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mut2);
+}
+.dock-expand-btn,
+.dock-collapse-btn {
+  color: var(--mut);
+  padding: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.dock-expand-btn:hover,
+.dock-collapse-btn:hover {
+  color: var(--ink);
+}
+.dock-tabs {
+  height: 32px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--dv2);
+  padding: 0 4px;
+}
+.dock-tabs button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 100%;
+  padding: 0 9px;
+  font-size: 10.5px;
+  color: var(--mut2);
+  border-bottom: 2px solid transparent;
+  background: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  cursor: pointer;
+}
+.dock-tabs button.is-active {
+  color: var(--ink);
+  border-bottom-color: var(--color-accent);
+}
+.dock-collapse-btn {
+  margin-left: auto;
+}
+.dock-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 14px;
+}
+.dock-placeholder {
+  margin: 0;
+  color: var(--mut2);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* ---------- Status bar ---------- */
+.statusbar {
+  height: var(--statusbar-h);
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  background: var(--chrome);
+  border-top: 1px solid var(--dv);
+  font-size: 10.5px;
+  color: var(--mut2);
+}
+.statusbar-track {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.statusbar-spacer {
+  flex: 1;
+}
+.statusbar-user {
+  color: var(--mut);
+}
