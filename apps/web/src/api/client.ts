@@ -52,17 +52,62 @@ export async function apiFetch<T>(path: string, init: ApiRequestInit<T>): Promis
   })
 
   if (!res.ok) {
-    let payload: ApiError
-    try {
-      const parsed = ApiErrorSchema.safeParse(await res.json())
-      payload = parsed.success
-        ? parsed.data
-        : { error: res.statusText || `HTTP ${res.status}`, code: 'malformed' }
-    } catch {
-      payload = { error: res.statusText || `HTTP ${res.status}`, code: 'malformed' }
-    }
-    throw new ApiFetchError(payload.error, res.status, payload)
+    throw new ApiFetchError(...(await parseErrorPayload(res)))
   }
 
   return init.schema.parse(await res.json())
+}
+
+/**
+ * Sibling to {@link apiFetch} for endpoints that return raw bytes rather than
+ * JSON — today, only `GET /api/v1/documents/:did/snapshots/:sid/state`, which
+ * hands us the Yjs update stream to feed into `Y.applyUpdate`.
+ *
+ * The bearer-token attach path is identical to {@link apiFetch} — that route
+ * is `viewer+` gated on the server, so a signed-out caller would 401 anyway;
+ * still, we send whatever session Supabase has so a signed-in user's request
+ * is authenticated the same way every other call is. Non-2xx responses go
+ * through the same {@link ApiFetchError} shape (JSON error envelope on
+ * failure paths, per the server's contract).
+ *
+ * Returns the raw body as a `Uint8Array` — `Y.applyUpdate` and every future
+ * on-wire y-protocols consumer want a typed byte view, not an `ArrayBuffer`.
+ */
+export async function apiFetchBinary(
+  path: string,
+  signal?: AbortSignal,
+): Promise<Uint8Array> {
+  const headers = new Headers()
+  const { data } = await supabase.auth.getSession()
+  const token = data.session?.access_token
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+
+  const res = await fetch(path, { method: 'GET', headers, signal })
+
+  if (!res.ok) {
+    throw new ApiFetchError(...(await parseErrorPayload(res)))
+  }
+
+  return new Uint8Array(await res.arrayBuffer())
+}
+
+/**
+ * Parse the failing-response JSON envelope into `ApiError` — shared between
+ * {@link apiFetch} and {@link apiFetchBinary}. When the server did not follow
+ * the contract (HTML error page, opaque proxy body), synthesise an envelope
+ * with `code: 'malformed'` so callers still see one shape.
+ */
+async function parseErrorPayload(
+  res: Response,
+): Promise<[message: string, status: number, payload: ApiError]> {
+  let payload: ApiError
+  try {
+    const parsed = ApiErrorSchema.safeParse(await res.json())
+    payload = parsed.success
+      ? parsed.data
+      : { error: res.statusText || `HTTP ${res.status}`, code: 'malformed' }
+  } catch {
+    payload = { error: res.statusText || `HTTP ${res.status}`, code: 'malformed' }
+  }
+  return [payload.error, res.status, payload]
 }
