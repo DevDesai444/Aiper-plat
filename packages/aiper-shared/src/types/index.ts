@@ -66,3 +66,7 @@ export * from './audit.js'
 // Comment) — E2 owns; kept in their own file so the two teams don't collide
 // on this barrel every week.
 export * from './hierarchy.js'
+
+// Blob types (UploadResponse + upload constants) — E2 owns; separate file so
+// the wk-5 blob freeze stays independent of the wk-2 hierarchy freeze.
+export * from './blobs.js'
