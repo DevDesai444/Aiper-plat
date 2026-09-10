@@ -15,6 +15,7 @@ import { registerAuthMiddleware } from './auth/middleware.js'
 import { registerHealthRoute } from './routes/health.js'
 import { registerMeRoute } from './routes/me.js'
 import { registerAuditRoute } from './routes/audit.js'
+import { registerHierarchyReadRoutes } from './routes/hierarchy/index.js'
 import pkg from '../package.json' with { type: 'json' }
 
 /**
@@ -66,6 +67,7 @@ export async function buildServer(config: Config, pool: pg.Pool): Promise<Fastif
   registerHealthRoute(app, pool)
   registerMeRoute(app)
   registerAuditRoute(app, pool)
+  registerHierarchyReadRoutes(app, pool)
 
   return app
 }
