@@ -42,6 +42,7 @@ before(async () => {
     PGUSER: t.user,
     PGPASSWORD: t.password,
     PGDATABASE: t.database,
+    SNAPSHOT_AUTO_INTERVAL_MS: 30_000,
   }
   app = await buildServer(config, db)
 })
