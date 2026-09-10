@@ -1,41 +1,52 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import type { Project } from '@aiper/shared/types'
-import { createFolder, getProject } from '../api/endpoints'
+import type { Document, Project } from '@aiper/shared/types'
+import {
+  createFolder,
+  createProjectDocument,
+  getProject,
+  listProjectDocuments,
+} from '../api/endpoints'
 import { ApiFetchError } from '../api/client'
-import { CreateRow } from './CreateRow'
 import './pages.css'
 
+type CreateMode = 'folder' | 'document'
+
 /**
- * /p/:pid — project metadata + jump-off tiles. The folder tree is already
- * in the Navigator on the left, so this page is intentionally sparse:
- * confirms you are looking at the right project and offers the two
- * project-wide destinations (product tree and compatibility dashboard).
+ * /p/:pid — project metadata + create surface. A project holds folders AND
+ * documents directly, so the create control is a split button: the primary
+ * action is "Create folder", and the caret switches it to "Create document".
  */
 export function ProjectOverviewPage() {
   const { pid } = useParams<{ pid: string }>()
   const navigate = useNavigate()
   const [project, setProject] = useState<Project | null>(null)
+  const [documents, setDocuments] = useState<Document[]>([])
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  const load = (signal?: AbortSignal): void => {
     if (!pid) return
+    getProject(pid, signal)
+      .then(setProject)
+      .catch((err: unknown) => {
+        if (signal?.aborted) return
+        setError(errMessage(err, 'Could not load project.'))
+      })
+    listProjectDocuments(pid, signal)
+      .then(setDocuments)
+      .catch(() => {
+        /* project-root documents are secondary; a load failure here is non-fatal */
+      })
+  }
+
+  useEffect(() => {
     const ac = new AbortController()
     setError(null)
     setProject(null)
-    getProject(pid, ac.signal)
-      .then(setProject)
-      .catch((err: unknown) => {
-        if (ac.signal.aborted) return
-        setError(
-          err instanceof ApiFetchError
-            ? `${err.status} ${err.message}`
-            : err instanceof Error
-              ? err.message
-              : 'Could not load project.',
-        )
-      })
+    setDocuments([])
+    load(ac.signal)
     return () => ac.abort()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pid])
 
   return (
@@ -58,19 +69,40 @@ export function ProjectOverviewPage() {
           </section>
 
           <section className="page-section">
-            <div className="page-section-label">Folders</div>
+            <div className="page-section-label">Create</div>
             <p className="page-muted">
-              The folder tree lives in the Navigator on the left. Create one here:
+              Folders and documents both live under this project. Documents you
+              create here sit directly in the project, not inside a folder.
             </p>
-            <CreateRow
-              placeholder="New folder name — e.g. TCS"
-              buttonLabel="Create folder"
-              onCreate={async (name) => {
+            <SplitCreate
+              onCreateFolder={async (name) => {
                 const folder = await createFolder(project.id, name)
                 navigate(`/p/${project.id}/f/${folder.id}`)
               }}
+              onCreateDocument={async (title) => {
+                const doc = await createProjectDocument(project.id, title)
+                setDocuments((prev) =>
+                  [...prev, doc].sort((a, b) =>
+                    a.title.toLowerCase().localeCompare(b.title.toLowerCase()),
+                  ),
+                )
+              }}
             />
           </section>
+
+          {documents.length > 0 && (
+            <section className="page-section">
+              <div className="page-section-label">Documents in this project</div>
+              <div className="card-list">
+                {documents.map((d) => (
+                  <div key={d.id} className="card card--static">
+                    <span className="card-title">{d.title}</span>
+                    <span className="card-sub">{d.kind} · editor coming from E7</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           <section className="page-section">
             <div className="page-section-label">Project surfaces</div>
@@ -87,6 +119,128 @@ export function ProjectOverviewPage() {
           </section>
         </>
       )}
+    </div>
+  )
+}
+
+function errMessage(err: unknown, fallback: string): string {
+  if (err instanceof ApiFetchError) return `${err.status} ${err.message}`
+  if (err instanceof Error) return err.message
+  return fallback
+}
+
+/**
+ * Text input + split button. Primary click runs the current mode's action;
+ * the caret opens a menu to switch between "folder" and "document".
+ */
+function SplitCreate({
+  onCreateFolder,
+  onCreateDocument,
+}: {
+  onCreateFolder: (name: string) => Promise<void>
+  onCreateDocument: (title: string) => Promise<void>
+}) {
+  const [mode, setMode] = useState<CreateMode>('folder')
+  const [name, setName] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const wrapRef = useRef<HTMLDivElement>(null)
+
+  // Close the menu on any outside click.
+  useEffect(() => {
+    if (!menuOpen) return
+    const onDown = (e: MouseEvent): void => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [menuOpen])
+
+  const label = mode === 'folder' ? 'Create folder' : 'Create document'
+  const placeholder =
+    mode === 'folder'
+      ? 'New folder name — e.g. TCS'
+      : 'New document title — e.g. TVAC Test Report'
+
+  const submit = async (): Promise<void> => {
+    const trimmed = name.trim()
+    if (!trimmed || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      if (mode === 'folder') await onCreateFolder(trimmed)
+      else await onCreateDocument(trimmed)
+      setName('')
+    } catch (err) {
+      setError(errMessage(err, 'Create failed.'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="create-block" ref={wrapRef}>
+      <form
+        className="create-row"
+        onSubmit={(e) => {
+          e.preventDefault()
+          void submit()
+        }}
+      >
+        <input
+          type="text"
+          value={name}
+          placeholder={placeholder}
+          onChange={(e) => setName(e.target.value)}
+          disabled={busy}
+        />
+        <div className="split-button">
+          <button type="submit" disabled={busy || !name.trim()}>
+            {busy ? 'Creating…' : label}
+          </button>
+          <button
+            type="button"
+            className="split-caret"
+            aria-label="Choose what to create"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            disabled={busy}
+            onClick={() => setMenuOpen((o) => !o)}
+          >
+            ▾
+          </button>
+          {menuOpen && (
+            <div className="split-menu" role="menu">
+              <button
+                type="button"
+                role="menuitem"
+                className={mode === 'folder' ? 'is-active' : ''}
+                onClick={() => {
+                  setMode('folder')
+                  setMenuOpen(false)
+                }}
+              >
+                Create folder
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className={mode === 'document' ? 'is-active' : ''}
+                onClick={() => {
+                  setMode('document')
+                  setMenuOpen(false)
+                }}
+              >
+                Create document
+              </button>
+            </div>
+          )}
+        </div>
+      </form>
+      {error && <div className="create-error">{error}</div>}
     </div>
   )
 }

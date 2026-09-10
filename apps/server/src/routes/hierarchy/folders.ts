@@ -79,7 +79,8 @@ export function registerFolderReadRoutes(app: FastifyInstance, pool: pg.Pool): v
 
       const rows = await pool.query<{
         id: string
-        folderId: string
+        folderId: string | null
+        projectId: string | null
         title: string
         kind: 'authored' | 'technical-sheet' | 'template'
         currentSnapshotId: string | null
@@ -89,6 +90,7 @@ export function registerFolderReadRoutes(app: FastifyInstance, pool: pg.Pool): v
       }>(
         `SELECT id,
                 folder_id           AS "folderId",
+                project_id          AS "projectId",
                 title,
                 kind,
                 current_snapshot_id AS "currentSnapshotId",

@@ -70,7 +70,8 @@ export const FolderSchema = z.object({
 
 export const DocumentSchema = z.object({
   id: z.string().uuid(),
-  folderId: z.string().uuid(),
+  folderId: z.string().uuid().nullable(),
+  projectId: z.string().uuid().nullable(),
   title: TitleSchema,
   kind: DocumentKindSchema,
   currentSnapshotId: z.string().uuid().nullable(),

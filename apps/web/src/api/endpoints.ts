@@ -142,3 +142,22 @@ export function createDocument(fid: string, title: string): Promise<Document> {
     schema: DocumentSchema,
   })
 }
+
+export function createProjectDocument(pid: string, title: string): Promise<Document> {
+  return apiFetch(`/api/v1/projects/${pid}/documents`, {
+    method: 'POST',
+    body: { title, kind: 'authored' as const },
+    schema: DocumentSchema,
+  })
+}
+
+export async function listProjectDocuments(
+  pid: string,
+  signal?: AbortSignal,
+): Promise<Document[]> {
+  const res = await apiFetch(`/api/v1/projects/${pid}/documents`, {
+    schema: z.object({ items: z.array(DocumentSchema) }),
+    signal,
+  })
+  return res.items
+}

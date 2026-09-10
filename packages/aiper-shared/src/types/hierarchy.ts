@@ -63,7 +63,11 @@ export type DocumentKind = 'authored' | 'technical-sheet' | 'template'
  */
 export interface Document {
   id: string
-  folderId: string
+  /** Parent folder, or null when the document lives directly under a project. */
+  folderId: string | null
+  /** Parent project, or null when the document lives inside a folder. Exactly
+   *  one of folderId / projectId is set. */
+  projectId: string | null
   title: string
   kind: DocumentKind
   currentSnapshotId: string | null

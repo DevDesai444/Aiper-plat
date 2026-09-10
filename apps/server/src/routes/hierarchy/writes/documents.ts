@@ -27,7 +27,31 @@ const DocumentUpdateSchema = z
   })
 
 const FolderIdParams = z.object({ fid: z.string().uuid() })
+const ProjectIdParams = z.object({ pid: z.string().uuid() })
 const DocumentIdParams = z.object({ did: z.string().uuid() })
+
+// Columns every document response projects. Shared between the folder-parented
+// and project-parented create routes and the PATCH route so the shape can't
+// drift between them.
+const DOC_RETURNING = `id,
+                     folder_id           AS "folderId",
+                     project_id          AS "projectId",
+                     title,
+                     kind,
+                     current_snapshot_id AS "currentSnapshotId",
+                     created_by          AS "createdBy",
+                     to_char(created_at AT TIME ZONE 'UTC', ${ISO_UTC}) AS "createdAt"`
+
+interface DocRow {
+  id: string
+  folderId: string | null
+  projectId: string | null
+  title: string
+  kind: 'authored' | 'technical-sheet' | 'template'
+  currentSnapshotId: string | null
+  createdBy: string
+  createdAt: string
+}
 
 export function registerDocumentWriteRoutes(app: FastifyInstance, pool: pg.Pool): void {
   const typed = app.withTypeProvider<ZodTypeProvider>()
@@ -61,24 +85,10 @@ export function registerDocumentWriteRoutes(app: FastifyInstance, pool: pg.Pool)
       try {
         await client.query('BEGIN')
 
-        const created = await client.query<{
-          id: string
-          folderId: string
-          title: string
-          kind: 'authored' | 'technical-sheet' | 'template'
-          currentSnapshotId: string | null
-          createdBy: string
-          createdAt: string
-        }>(
+        const created = await client.query<DocRow>(
           `INSERT INTO documents (folder_id, title, kind, created_by)
              VALUES ($1, $2, $3, $4)
-           RETURNING id,
-                     folder_id           AS "folderId",
-                     title,
-                     kind,
-                     current_snapshot_id AS "currentSnapshotId",
-                     created_by          AS "createdBy",
-                     to_char(created_at AT TIME ZONE 'UTC', ${ISO_UTC}) AS "createdAt"`,
+           RETURNING ${DOC_RETURNING}`,
           [fid, title, kind, userId],
         )
         const doc = created.rows[0]!
@@ -90,6 +100,64 @@ export function registerDocumentWriteRoutes(app: FastifyInstance, pool: pg.Pool)
           subjectType: 'document',
           subjectId: doc.id,
           newValue: { title, kind, folderId: fid },
+        })
+
+        await client.query('COMMIT')
+        return reply.code(201).send({ ...doc, myRole: 'owner' })
+      } catch (err) {
+        await client.query('ROLLBACK').catch(() => {})
+        throw err
+      } finally {
+        client.release()
+      }
+    },
+  )
+
+  // --------------------------------------------------------------- POST /projects/:pid/documents
+  // A document can live directly under a project, not only inside a folder.
+  typed.post(
+    '/api/v1/projects/:pid/documents',
+    {
+      schema: {
+        summary: 'Create an authored document directly under a project',
+        params: ProjectIdParams,
+        body: DocumentCreateSchema,
+        response: {
+          201: DocumentSchema,
+          401: ApiErrorSchema,
+          403: ApiErrorSchema,
+          404: ApiErrorSchema,
+        },
+      },
+    },
+    async (req, reply) => {
+      if (!req.user) return unauthorized(reply)
+      const { pid } = req.params
+      const { title, kind } = req.body
+      const userId = req.user.id
+
+      const role = await resolveOrDenyForWrite(pool, reply, userId, 'project', pid, 'editor')
+      if (role === null) return
+
+      const client = await pool.connect()
+      try {
+        await client.query('BEGIN')
+
+        const created = await client.query<DocRow>(
+          `INSERT INTO documents (project_id, title, kind, created_by)
+             VALUES ($1, $2, $3, $4)
+           RETURNING ${DOC_RETURNING}`,
+          [pid, title, kind, userId],
+        )
+        const doc = created.rows[0]!
+
+        await writeAudit(client, {
+          userId,
+          printedName: printedName(req.user),
+          action: 'document.created',
+          subjectType: 'document',
+          subjectId: doc.id,
+          newValue: { title, kind, projectId: pid },
         })
 
         await client.query('COMMIT')
@@ -148,27 +216,13 @@ export function registerDocumentWriteRoutes(app: FastifyInstance, pool: pg.Pool)
           archivedAt: 'archivedAt' in body ? body.archivedAt ?? null : prev.archivedAt,
         }
 
-        const updated = await client.query<{
-          id: string
-          folderId: string
-          title: string
-          kind: 'authored' | 'technical-sheet' | 'template'
-          currentSnapshotId: string | null
-          createdBy: string
-          createdAt: string
-        }>(
+        const updated = await client.query<DocRow>(
           `UPDATE documents
               SET title       = $1,
                   archived_at = $2::timestamptz,
                   updated_at  = now()
             WHERE id = $3
-        RETURNING id,
-                  folder_id           AS "folderId",
-                  title,
-                  kind,
-                  current_snapshot_id AS "currentSnapshotId",
-                  created_by          AS "createdBy",
-                  to_char(created_at AT TIME ZONE 'UTC', ${ISO_UTC}) AS "createdAt"`,
+        RETURNING ${DOC_RETURNING}`,
           [next.title, next.archivedAt, did],
         )
         const doc = updated.rows[0]!

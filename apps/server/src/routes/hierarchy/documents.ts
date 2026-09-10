@@ -40,6 +40,7 @@ export function registerDocumentReadRoutes(app: FastifyInstance, pool: pg.Pool):
       const rows = await pool.query(
         `SELECT id,
                 folder_id           AS "folderId",
+                project_id          AS "projectId",
                 title,
                 kind,
                 current_snapshot_id AS "currentSnapshotId",
@@ -49,6 +50,48 @@ export function registerDocumentReadRoutes(app: FastifyInstance, pool: pg.Pool):
         [did],
       )
       return { ...rows.rows[0], myRole: role }
+    },
+  )
+
+  // Documents that live directly under a project (folder_id IS NULL).
+  // Access-gated on the project.
+  typed.get(
+    '/api/v1/projects/:pid/documents',
+    {
+      schema: {
+        summary: 'List documents directly under a project (not inside any folder)',
+        params: z.object({ pid: z.string().uuid() }),
+        response: {
+          200: z.object({ items: z.array(DocumentSchema) }),
+          401: ApiErrorSchema,
+          403: ApiErrorSchema,
+          404: ApiErrorSchema,
+        },
+      },
+    },
+    async (req, reply) => {
+      if (!req.user) return unauthorized(reply)
+      const { pid } = req.params
+
+      const role = await resolveOrDeny(pool, reply, req.user.id, 'project', pid)
+      if (role === null) return
+
+      const rows = await pool.query(
+        `SELECT id,
+                folder_id           AS "folderId",
+                project_id          AS "projectId",
+                title,
+                kind,
+                current_snapshot_id AS "currentSnapshotId",
+                created_by          AS "createdBy",
+                to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "createdAt",
+                aiper_effective_access($1, 'document', id) AS "myRole"
+           FROM documents
+          WHERE project_id = $2 AND folder_id IS NULL
+          ORDER BY lower(title)`,
+        [req.user.id, pid],
+      )
+      return { items: rows.rows }
     },
   )
 

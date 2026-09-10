@@ -233,6 +233,62 @@
   margin-top: 6px;
 }
 
+/* Split button: primary create action + caret that opens a mode menu. */
+.split-button {
+  position: relative;
+  display: flex;
+}
+.split-button > button:first-child {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.split-caret {
+  background: var(--color-accent);
+  border: none;
+  border-left: 1px solid color-mix(in srgb, #000 25%, transparent);
+  color: #10141a;
+  font-size: 11px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+.split-caret:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.split-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 20;
+  min-width: 180px;
+  background: var(--chrome);
+  border: 1px solid var(--dv);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+.split-menu button {
+  background: none;
+  border: none;
+  color: var(--ink);
+  text-align: left;
+  font-size: 12.5px;
+  padding: 9px 12px;
+  cursor: pointer;
+}
+.split-menu button:hover {
+  background: var(--chrome2);
+}
+.split-menu button.is-active {
+  color: var(--color-accent);
+}
+.card--static {
+  cursor: default;
+}
+.card--static:hover {
+  border-color: var(--dv);
+}
+
 .login-alt-actions {
   display: flex;
   flex-direction: column;
