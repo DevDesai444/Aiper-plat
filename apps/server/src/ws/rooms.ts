@@ -13,22 +13,25 @@ import { saveSnapshot } from '../snapshots.js'
  * bridge between the WebSocket layer (index.ts) and the storage layer
  * (saveSnapshot in ../snapshots.ts).
  *
- * Wire protocol matches y-protocols exactly (types are numbered
- * varuints — 0 = SYNC, 1 = AWARENESS). Server never sets a local
- * awareness state; it just relays deltas from peers.
+ * Wire protocol matches y-protocols exactly (outer varuint 0 = SYNC,
+ * 1 = AWARENESS). Server never sets a local awareness state; it just
+ * relays deltas from peers.
  *
  * Persistence:
  *   - On first join for a document, hydrate the Y.Doc from the latest
- *     document_snapshots row (applyUpdate).
- *   - Every autoSnapshotIntervalMs, if the room is "dirty" (an editor
- *     peer landed an update since the last snapshot), encode the doc
- *     state and call saveSnapshot(reason='auto'). Auto-snapshots skip
- *     the audit_log write per the wk-4 interface freeze.
+ *     document_snapshots row (applyUpdate) and record the state
+ *     vector so a stale open (no edits) never triggers a re-persist.
+ *   - Every autoSnapshotIntervalMs, if the room is dirty (an editor
+ *     peer landed a SyncStep2 or SyncUpdate since the last save),
+ *     encode the doc state and call saveSnapshot(reason='auto'). The
+ *     persist path also compares state vectors; if the vector has not
+ *     moved since the last snapshot, the write is skipped — a defence
+ *     against phantom snapshots from mis-set dirty flags.
  *   - On last-peer-disconnect, flush a final auto-snapshot before
- *     dropping the in-memory doc. If a fresh peer connects while the
- *     flush is in flight, the room stays and the flush still completes
- *     harmlessly — the "delete the room" step only runs when the peer
- *     set is empty AFTER the save resolves.
+ *     dropping the in-memory doc. All persist calls are serialised
+ *     onto one promise chain: an edit that lands while a save is in
+ *     flight sets dirty back to true and the chained loop iteration
+ *     picks it up, so no edit is ever lost in the flush window.
  *
  * Redis fan-out for multi-instance deployments is a Phase-5 concern;
  * a single-instance server is fine for MVP.
@@ -36,6 +39,10 @@ import { saveSnapshot } from '../snapshots.js'
 
 const MESSAGE_SYNC = 0
 const MESSAGE_AWARENESS = 1
+
+const SYNC_STEP1 = 0
+const SYNC_STEP2 = 1
+const SYNC_UPDATE = 2
 
 /**
  * The socket surface the registry cares about. Real @fastify/websocket
@@ -67,23 +74,44 @@ interface Room {
   doc: Y.Doc
   awareness: Awareness
   peers: Set<Peer>
-  /** True if any editor peer has landed an update since the last save.
-   *  Viewer connects/disconnects don't touch this. */
+  /** Which Yjs awareness clientIDs each peer's state occupies. Populated
+   *  from the awareness update stream keyed on `origin` and used to
+   *  remove the peer's cursors on disconnect. Cannot be derived from
+   *  the `Peer` object alone — the clientID is assigned by the client's
+   *  own Yjs runtime and rides inside its first awareness frame. */
+  peerClients: Map<Peer, Set<number>>
+  /** True if any editor peer has landed a SyncStep2 or SyncUpdate since
+   *  the last persist. SyncStep1 is a read (peer asking us for state)
+   *  and does NOT dirty the room. */
   dirty: boolean
   /** The user whose update most recently made the room dirty. Their id
    *  goes into document_snapshots.saved_by for the next auto-save so
    *  the timeline attributes the persistence tick to a real person. */
   lastEditor: { id: string; printedName: string } | null
   autoTimer: NodeJS.Timeout | null
-  /** True while hydration or a persistence flush is in flight. Prevents
-   *  concurrent persist runs racing each other for the same doc. */
-  persistInFlight: boolean
+  /** State vector last written to document_snapshots (or captured on
+   *  hydrate). If a persist would encode a state vector byte-equal to
+   *  this, the write is skipped — an auto-tick with no real change
+   *  should not create a phantom history row. */
+  lastPersistedStateVector: Uint8Array | null
+  /** Serialisation chain — every persist() awaits the prior one, so
+   *  two callers (timer + last-peer flush) never race and no in-flight
+   *  save silently drops a concurrent edit. */
+  persistChain: Promise<void>
   hydrated: Promise<void>
 }
 
 export interface RoomRegistryOpts {
   autoSnapshotIntervalMs: number
   logger: FastifyBaseLogger
+}
+
+/** Byte-equality helper — Buffer.equals only works when both operands
+ *  are Buffers, and lib0/Yjs hand back Uint8Arrays. */
+function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.byteLength !== b.byteLength) return false
+  for (let i = 0; i < a.byteLength; i++) if (a[i] !== b[i]) return false
+  return true
 }
 
 export class RoomRegistry {
@@ -118,8 +146,6 @@ export class RoomRegistry {
     for (const [docId, room] of this.rooms) {
       if (room.autoTimer) clearInterval(room.autoTimer)
       room.autoTimer = null
-      // Close every peer with 1001 going-away so the client knows to
-      // reconnect on its own timer once the server is back.
       for (const p of room.peers) {
         try {
           p.socket.close(1001, 'server shutting down')
@@ -132,32 +158,36 @@ export class RoomRegistry {
       }))
     }
     await Promise.all(flushes)
+    // Awareness's outdated-check interval must be destroyed too,
+    // otherwise it holds the event loop open past app.close().
+    for (const room of this.rooms.values()) {
+      room.awareness.destroy()
+      room.doc.destroy()
+    }
     this.rooms.clear()
   }
 
   private async joinOrCreate(documentId: string, peer: Peer): Promise<Room> {
     const existing = this.rooms.get(documentId)
     if (existing) {
-      // Wait for the in-flight hydration to complete so the peer sees
-      // the same doc state as everyone else at their first sync tick.
       await existing.hydrated
       return existing
     }
 
     const doc = new Y.Doc()
     const awareness = new Awareness(doc)
-    // Server has no local awareness state — clear the auto-registered
-    // client from being broadcast; peers register themselves.
     awareness.setLocalState(null)
 
     const room: Room = {
       doc,
       awareness,
       peers: new Set(),
+      peerClients: new Map(),
       dirty: false,
       lastEditor: null,
       autoTimer: null,
-      persistInFlight: false,
+      lastPersistedStateVector: null,
+      persistChain: Promise.resolve(),
       hydrated: Promise.resolve(),
     }
     this.rooms.set(documentId, room)
@@ -167,10 +197,10 @@ export class RoomRegistry {
     })
     await room.hydrated
 
-    // Any update the doc receives — from a peer applyUpdate, from
-    // hydration, or from any other origin — fans out to every peer
-    // whose socket did not originate the change. `origin` is the peer
-    // that sent us the update (or `null` for hydration).
+    // Fan out any update the doc receives to every peer except the
+    // origin. `origin` is the Peer that sent us the update (or a
+    // string like 'hydrate' for the seed apply). Peers-that-aren't-
+    // peers are skipped by the identity comparison below.
     doc.on('update', (update: Uint8Array, origin: unknown) => {
       const encoder = encoding.createEncoder()
       encoding.writeVarUint(encoder, MESSAGE_SYNC)
@@ -186,13 +216,29 @@ export class RoomRegistry {
       }
     })
 
-    // Awareness deltas: relay to every peer except the sender. Absent
-    // clients (someone whose tab closed) get an implicit removeStates
-    // via the same delta encoding.
+    // Awareness deltas: relay to every peer except the sender AND
+    // record which client IDs each peer owns so disconnect can remove
+    // exactly the right cursors.
     awareness.on('update', (
       { added, updated, removed }: { added: number[]; updated: number[]; removed: number[] },
       origin: unknown,
     ) => {
+      // Attribute IDs to a peer only when the origin is a peer we
+      // currently admit. During removeAwarenessStates from a
+      // disconnect the peer is already out of room.peers, so this
+      // branch is (correctly) skipped for the departure path.
+      if (origin && room.peers.has(origin as Peer)) {
+        const peer = origin as Peer
+        let set = room.peerClients.get(peer)
+        if (!set) {
+          set = new Set()
+          room.peerClients.set(peer, set)
+        }
+        for (const id of added) set.add(id)
+        for (const id of updated) set.add(id)
+        for (const id of removed) set.delete(id)
+      }
+
       const changed = added.concat(updated).concat(removed)
       const encoder = encoding.createEncoder()
       encoding.writeVarUint(encoder, MESSAGE_AWARENESS)
@@ -209,9 +255,9 @@ export class RoomRegistry {
     })
 
     room.autoTimer = setInterval(() => {
-      // Fire-and-forget — errors are logged inside persist. The timer
-      // does not await, so a slow save cannot pile up further ticks.
-      void this.persistIfDirty(documentId, room)
+      void this.persist(documentId, room).catch((err) => {
+        this.opts.logger.error({ err, docId: documentId }, 'ws: auto-tick persist failed')
+      })
     }, this.opts.autoSnapshotIntervalMs)
     return room
   }
@@ -224,25 +270,27 @@ export class RoomRegistry {
         LIMIT 1`,
       [documentId],
     )
-    if (row.rowCount === 0) return
-    // Apply with a hydrate origin so the room's own update listener
-    // does not treat this as a peer edit worth broadcasting.
+    if (row.rowCount === 0) {
+      // Empty doc — capture the empty state vector so an open-only
+      // session never triggers a dedupe miss and re-persist.
+      room.lastPersistedStateVector = Y.encodeStateVector(room.doc)
+      return
+    }
     Y.applyUpdate(room.doc, row.rows[0]!.yjs_state, 'hydrate')
+    room.lastPersistedStateVector = Y.encodeStateVector(room.doc)
   }
 
   private attachPeer(documentId: string, room: Room, peer: Peer): void {
     room.peers.add(peer)
 
-    // Kick off the sync: send our state vector so the peer can compute
-    // what it lacks. Peer will reply with a SyncStep2 (update) and its
-    // own SyncStep1; we handle both in messageHandler.
+    // Send our state vector so the peer can compute what it lacks.
+    // Peer will reply with a SyncStep2 (update) and its own SyncStep1;
+    // both are handled in handleMessage.
     const syncEncoder = encoding.createEncoder()
     encoding.writeVarUint(syncEncoder, MESSAGE_SYNC)
     writeSyncStep1(syncEncoder, room.doc)
     peer.socket.send(encoding.toUint8Array(syncEncoder))
 
-    // If there is any current awareness state, send it so the peer
-    // immediately renders other users' cursors.
     const awarenessStates = room.awareness.getStates()
     if (awarenessStates.size > 0) {
       const awarenessEncoder = encoding.createEncoder()
@@ -262,138 +310,198 @@ export class RoomRegistry {
     })
   }
 
+  /**
+   * Route one binary frame from a peer. Every failure mode — bad outer
+   * type byte, bad sync sub-type, bad awareness payload, bad y-update
+   * bytes — MUST drop the frame and leave the process running. lib0
+   * throws on garbage and there is no other net for it; a crash here
+   * kills every other room on the server.
+   */
   private handleMessage(
     documentId: string,
     room: Room,
     peer: Peer,
     bytes: Uint8Array,
   ): void {
-    let decoder: decoding.Decoder
-    let messageType: number
+    let outerType: number
     try {
-      decoder = decoding.createDecoder(bytes)
-      messageType = decoding.readVarUint(decoder)
+      const outerDecoder = decoding.createDecoder(bytes)
+      outerType = decoding.readVarUint(outerDecoder)
     } catch (err) {
-      this.opts.logger.debug({ err, docId: documentId }, 'ws: malformed frame')
+      this.opts.logger.debug({ err, docId: documentId }, 'ws: malformed frame header')
       return
     }
 
-    switch (messageType) {
-      case MESSAGE_SYNC: {
-        // A viewer trying to push doc updates is a protocol violation
-        // — silently drop. writeUpdate + applyUpdate must not run for
-        // read-only peers. Note: SyncStep1 is a read (the peer is
-        // asking us for our state), and viewers are entitled to that;
-        // so allow SyncStep1 through but block SyncStep2 / SyncUpdate.
-        const encoder = encoding.createEncoder()
-        encoding.writeVarUint(encoder, MESSAGE_SYNC)
-        if (peer.role === 'viewer') {
-          // Peek the sub-type without consuming from the shared
-          // decoder — construct a second view.
-          const peek = decoding.createDecoder(bytes)
-          decoding.readVarUint(peek) // skip outer type
-          const subType = decoding.readVarUint(peek)
-          if (subType !== 0 /* SyncStep1 */) {
-            this.opts.logger.warn(
-              { docId: documentId, userId: peer.userId },
-              'ws: viewer attempted a doc write; ignoring',
-            )
-            return
-          }
-        }
-        // readSyncMessage applies updates to room.doc using `peer` as
-        // origin — the doc.on('update') fan-out uses that to skip the
-        // sender.
-        readSyncMessage(decoder, encoder, room.doc, peer)
-        if (encoding.length(encoder) > 1) {
-          peer.socket.send(encoding.toUint8Array(encoder))
-        }
-        if (peer.role !== 'viewer') {
-          room.dirty = true
-          room.lastEditor = { id: peer.userId, printedName: peer.printedName }
-        }
+    switch (outerType) {
+      case MESSAGE_SYNC:
+        this.handleSync(documentId, room, peer, bytes)
         break
-      }
-      case MESSAGE_AWARENESS: {
-        // Awareness relay is allowed for every role — a viewer's
-        // cursor is safe to share.
-        try {
-          applyAwarenessUpdate(room.awareness, decoding.readVarUint8Array(decoder), peer)
-        } catch (err) {
-          this.opts.logger.debug({ err, docId: documentId }, 'ws: awareness apply failed')
-        }
+      case MESSAGE_AWARENESS:
+        this.handleAwareness(documentId, room, peer, bytes)
         break
-      }
       default:
-        // Unknown top-level type — ignore. y-protocols occasionally
-        // adds auth (2) / queryAwareness (3); we don't speak them yet.
-        this.opts.logger.debug({ messageType, docId: documentId }, 'ws: unknown message type')
+        this.opts.logger.debug(
+          { messageType: outerType, docId: documentId },
+          'ws: unknown outer message type',
+        )
+    }
+  }
+
+  private handleSync(documentId: string, room: Room, peer: Peer, bytes: Uint8Array): void {
+    // Peek the sub-type once so we can gate viewer-write rejection AND
+    // dirty-eligibility BEFORE any y-protocols call that could throw
+    // on malformed bytes. SyncStep1 is a pure read (peer asks for our
+    // state), so it never marks the room dirty; a viewer is entitled
+    // to send it. SyncStep2 / SyncUpdate carry writes and are blocked
+    // for viewers.
+    let subType: number
+    try {
+      const peek = decoding.createDecoder(bytes)
+      decoding.readVarUint(peek) // outer type, already read
+      subType = decoding.readVarUint(peek)
+    } catch (err) {
+      this.opts.logger.debug({ err, docId: documentId }, 'ws: malformed sync sub-type')
+      return
+    }
+
+    const isDocWrite = subType === SYNC_STEP2 || subType === SYNC_UPDATE
+    if (peer.role === 'viewer' && isDocWrite) {
+      this.opts.logger.warn(
+        { docId: documentId, userId: peer.userId },
+        'ws: viewer attempted a doc write; ignoring',
+      )
+      return
+    }
+
+    try {
+      const decoder = decoding.createDecoder(bytes)
+      decoding.readVarUint(decoder) // consume outer type
+      const encoder = encoding.createEncoder()
+      encoding.writeVarUint(encoder, MESSAGE_SYNC)
+      readSyncMessage(decoder, encoder, room.doc, peer)
+      if (encoding.length(encoder) > 1) {
+        peer.socket.send(encoding.toUint8Array(encoder))
+      }
+    } catch (err) {
+      // readSyncMessage / applyUpdate can throw on malformed y-update
+      // bytes. Drop the frame; the state stays coherent because the
+      // partial applyUpdate would have thrown before mutating (Yjs
+      // handles this via a transaction).
+      this.opts.logger.debug({ err, docId: documentId, subType }, 'ws: sync decode failed; dropping frame')
+      return
+    }
+
+    // Only writes dirty the room. SyncStep1 stays clean so opening a
+    // doc without editing does not create a phantom snapshot.
+    if (isDocWrite && peer.role !== 'viewer') {
+      room.dirty = true
+      room.lastEditor = { id: peer.userId, printedName: peer.printedName }
+    }
+  }
+
+  private handleAwareness(documentId: string, room: Room, peer: Peer, bytes: Uint8Array): void {
+    try {
+      const decoder = decoding.createDecoder(bytes)
+      decoding.readVarUint(decoder) // consume outer type
+      applyAwarenessUpdate(room.awareness, decoding.readVarUint8Array(decoder), peer)
+    } catch (err) {
+      this.opts.logger.debug({ err, docId: documentId }, 'ws: awareness apply failed; dropping frame')
     }
   }
 
   private async handlePeerLeave(documentId: string, room: Room, peer: Peer): Promise<void> {
     room.peers.delete(peer)
-    // Withdraw the peer's awareness so remaining peers see their cursor
-    // disappear immediately, rather than waiting for the client's own
-    // beforeunload cleanup which browsers do not guarantee.
-    const clients = Array.from(room.awareness.getStates().keys())
-    if (clients.length > 0) {
-      removeAwarenessStates(
-        room.awareness,
-        clients.filter((cid) => cid === (peer as unknown as { clientID?: number }).clientID),
-        peer,
-      )
+
+    // Withdraw exactly this peer's awareness clients so remaining
+    // peers see their cursors vanish immediately, rather than waiting
+    // out the beforeunload handshake (which browsers do not
+    // guarantee) or the awareness protocol's own timeout (~30 s).
+    const clients = room.peerClients.get(peer)
+    room.peerClients.delete(peer)
+    if (clients && clients.size > 0) {
+      removeAwarenessStates(room.awareness, Array.from(clients), peer)
     }
 
     if (room.peers.size > 0) return
 
-    // Last peer gone. Persist if there is anything worth saving, then
-    // tear the room down — unless a new peer joined during the save,
-    // in which case we leave the room in place.
+    // Last peer gone. Kill the timer, drain any in-flight persist +
+    // any dirty edits it missed, then tear down — unless a fresh
+    // peer joined during the flush, in which case leave the room.
     if (room.autoTimer) clearInterval(room.autoTimer)
     room.autoTimer = null
 
     try {
-      await this.persistIfDirty(documentId, room)
+      await this.persist(documentId, room)
     } catch (err) {
       this.opts.logger.error({ err, docId: documentId }, 'ws: last-peer flush failed')
     }
 
     if (room.peers.size === 0) {
-      // Detach doc listeners so the GC can drop this Y.Doc rather
-      // than keep it alive through the awareness handler closure.
+      // y-protocols/awareness registers its own outdated-check
+      // setInterval on construction. Must be destroyed alongside the
+      // Y.Doc or it will keep the Node event loop alive forever.
+      room.awareness.destroy()
       room.doc.destroy()
       this.rooms.delete(documentId)
     }
   }
 
-  private async persistIfDirty(documentId: string, room: Room): Promise<void> {
-    if (!room.dirty || room.persistInFlight || !room.lastEditor) return
-    await this.persist(documentId, room)
+  /**
+   * Serialised, dedupe-aware persist. Chained onto the room's prior
+   * persist so two concurrent triggers (timer + last-peer flush) do
+   * not race, and looped internally so an edit that lands during a
+   * save is not silently dropped:
+   *
+   *   1. Wait for any prior persist on this room.
+   *   2. If dirty and lastEditor set, encode state + state vector.
+   *   3. Reset dirty = false BEFORE writing so edits landing during
+   *      the await set it back to true and trigger another loop.
+   *   4. If the state vector byte-matches lastPersistedStateVector,
+   *      skip the write — the doc has not moved since the last save.
+   *   5. Otherwise write via saveSnapshot(reason='auto', label=null)
+   *      and update lastPersistedStateVector.
+   *   6. Loop until dirty is stable-false.
+   */
+  private async persist(documentId: string, room: Room): Promise<void> {
+    const prior = room.persistChain
+    const my = prior.then(() => this.doPersist(documentId, room))
+    // Keep the chain alive even if this iteration throws — the next
+    // caller should still get to run.
+    room.persistChain = my.catch(() => {})
+    return my
   }
 
-  private async persist(documentId: string, room: Room): Promise<void> {
-    if (!room.dirty || !room.lastEditor) return
-    room.persistInFlight = true
-    try {
+  private async doPersist(documentId: string, room: Room): Promise<void> {
+    while (room.dirty && room.lastEditor) {
+      const editor = room.lastEditor
       const state = Y.encodeStateAsUpdate(room.doc)
-      // Node's Buffer view onto the same bytes — no copy. saveSnapshot
-      // stores as BYTEA which pg accepts either shape.
+      const sv = Y.encodeStateVector(room.doc)
+      // Acquire dirty=false before the await so any edit landing
+      // during the DB write sets it back to true and forces another
+      // iteration.
+      room.dirty = false
+
+      if (room.lastPersistedStateVector && bytesEqual(sv, room.lastPersistedStateVector)) {
+        // No actual state change — nothing to persist. Loop guard
+        // will exit if dirty stays false.
+        continue
+      }
+
       const buf = Buffer.from(state.buffer, state.byteOffset, state.byteLength)
       await saveSnapshot(this.pool, documentId, buf, {
         reason: 'auto',
         label: null,
         userReason: null,
-        actor: { id: room.lastEditor.id, printedName: room.lastEditor.printedName },
+        actor: { id: editor.id, printedName: editor.printedName },
       })
-      room.dirty = false
-    } finally {
-      room.persistInFlight = false
+      // Copy the SV — Yjs may reuse the underlying buffer for future
+      // encodings, and we're going to hold this reference until the
+      // next comparison.
+      room.lastPersistedStateVector = new Uint8Array(sv)
     }
   }
 
-  /** Test-only accessor: how many rooms are live? Kept public so
-   *  integration tests can assert the last-peer cleanup ran. */
+  /** Test-only accessor: how many rooms are live? */
   public roomCount(): number {
     return this.rooms.size
   }
@@ -401,5 +509,12 @@ export class RoomRegistry {
   /** Test-only accessor: is the given document's room dirty? */
   public isDirty(documentId: string): boolean {
     return this.rooms.get(documentId)?.dirty ?? false
+  }
+
+  /** Test-only accessor: how many awareness clients does the room see
+   *  right now? Used by the ghost-cursor test to confirm the departed
+   *  peer's cursor was removed. */
+  public awarenessClientCount(documentId: string): number {
+    return this.rooms.get(documentId)?.awareness.getStates().size ?? 0
   }
 }
