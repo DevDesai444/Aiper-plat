@@ -25,8 +25,13 @@ export function testDbConfig(): DbConfig & { adminDatabase: string } {
 /** Names of every data table that migrations create. Truncated between
  *  tests so each case starts from a clean slate. schema_migrations
  *  intentionally stays populated — nobody re-runs migrations between
- *  cases, only between test files. */
+ *  cases, only between test files.
+ *
+ *  audit_log is included but its append-only + no-truncate triggers are
+ *  disabled around the TRUNCATE call. In production these guarantee the
+ *  chain is immutable; in tests we need a clean slate every case. */
 const DATA_TABLES = [
+  'audit_log',
   'access_grants',
   'documents',
   'folders',
@@ -76,9 +81,20 @@ export async function setupTestDb(): Promise<pg.Pool> {
   return pool
 }
 
-/** Wipe all data between test cases. Preserves the schema itself. */
+/** Wipe all data between test cases. Preserves the schema itself.
+ *  Disables audit_log's append-only + no-truncate triggers for the
+ *  duration of the TRUNCATE; production code paths never do this. */
 export async function truncateAll(pool: pg.Pool): Promise<void> {
-  await pool.query(`TRUNCATE TABLE ${DATA_TABLES.join(', ')} RESTART IDENTITY CASCADE`)
+  const client = await pool.connect()
+  try {
+    await client.query('ALTER TABLE audit_log DISABLE TRIGGER audit_log_no_truncate')
+    await client.query('ALTER TABLE audit_log DISABLE TRIGGER audit_log_append_only')
+    await client.query(`TRUNCATE TABLE ${DATA_TABLES.join(', ')} RESTART IDENTITY CASCADE`)
+    await client.query('ALTER TABLE audit_log ENABLE TRIGGER audit_log_no_truncate')
+    await client.query('ALTER TABLE audit_log ENABLE TRIGGER audit_log_append_only')
+  } finally {
+    client.release()
+  }
 }
 
 /** Close the pool at the end of a test file. */
