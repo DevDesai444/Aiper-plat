@@ -1,0 +1,29 @@
+{
+  "name": "@aiper/shared",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Shared TypeScript types and Zod schemas across Aiper apps and packages",
+  "type": "module",
+  "exports": {
+    "./types": {
+      "types": "./src/types/index.ts",
+      "default": "./src/types/index.ts"
+    },
+    "./schemas": {
+      "types": "./src/schemas/index.ts",
+      "default": "./src/schemas/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/*.test.ts"
+  },
+  "peerDependencies": {
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.23.12",
+    "zod": "^3.25.76"
+  }
+}
