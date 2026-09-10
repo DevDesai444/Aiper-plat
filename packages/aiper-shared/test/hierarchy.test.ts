@@ -142,10 +142,11 @@ test('FolderSchema rejects a non-uuid parentFolderId', () => {
   )
 })
 
-test('DocumentSchema parses a document with a null current snapshot', () => {
+test('DocumentSchema parses a folder-parented document with a null current snapshot', () => {
   const parsed = DocumentSchema.parse({
     id: UUID_A,
     folderId: UUID_B,
+    projectId: null,
     title: 'Test Report for TVAC of the TCS of MISSION-X — Rev 2',
     kind: 'authored',
     currentSnapshotId: null,
@@ -154,6 +155,23 @@ test('DocumentSchema parses a document with a null current snapshot', () => {
     myRole: 'owner',
   })
   assert.equal(parsed.currentSnapshotId, null)
+  assert.equal(parsed.projectId, null)
+})
+
+test('DocumentSchema parses a project-parented document (folderId null)', () => {
+  const parsed = DocumentSchema.parse({
+    id: UUID_A,
+    folderId: null,
+    projectId: UUID_B,
+    title: 'Project-level ICD',
+    kind: 'authored',
+    currentSnapshotId: null,
+    createdBy: UUID_C,
+    createdAt: NOW,
+    myRole: 'owner',
+  })
+  assert.equal(parsed.folderId, null)
+  assert.equal(parsed.projectId, UUID_B)
 })
 
 test('DocumentSchema rejects an unknown kind or over-long title', () => {
@@ -161,6 +179,7 @@ test('DocumentSchema rejects an unknown kind or over-long title', () => {
     DocumentSchema.parse({
       id: UUID_A,
       folderId: UUID_B,
+      projectId: null,
       title: 'x',
       kind: 'sketch',
       currentSnapshotId: null,
@@ -173,6 +192,7 @@ test('DocumentSchema rejects an unknown kind or over-long title', () => {
     DocumentSchema.parse({
       id: UUID_A,
       folderId: UUID_B,
+      projectId: null,
       title: 'x'.repeat(301),
       kind: 'authored',
       currentSnapshotId: null,
