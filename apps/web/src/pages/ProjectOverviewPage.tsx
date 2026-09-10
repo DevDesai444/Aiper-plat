@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { Project } from '@aiper/shared/types'
-import { getProject } from '../api/endpoints'
+import { createFolder, getProject } from '../api/endpoints'
 import { ApiFetchError } from '../api/client'
+import { CreateRow } from './CreateRow'
 import './pages.css'
 
 /**
@@ -13,6 +14,7 @@ import './pages.css'
  */
 export function ProjectOverviewPage() {
   const { pid } = useParams<{ pid: string }>()
+  const navigate = useNavigate()
   const [project, setProject] = useState<Project | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -53,6 +55,21 @@ export function ProjectOverviewPage() {
           <section className="page-section">
             <div className="page-section-label">Your access</div>
             <p>{project.myRole ?? 'no access'}</p>
+          </section>
+
+          <section className="page-section">
+            <div className="page-section-label">Folders</div>
+            <p className="page-muted">
+              The folder tree lives in the Navigator on the left. Create one here:
+            </p>
+            <CreateRow
+              placeholder="New folder name — e.g. TCS"
+              buttonLabel="Create folder"
+              onCreate={async (name) => {
+                const folder = await createFolder(project.id, name)
+                navigate(`/p/${project.id}/f/${folder.id}`)
+              }}
+            />
           </section>
 
           <section className="page-section">

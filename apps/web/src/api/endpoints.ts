@@ -102,3 +102,43 @@ export async function listFolderDocuments(
 export function getDocument(did: string, signal?: AbortSignal): Promise<Document> {
   return apiFetch(`/api/v1/documents/${did}`, { schema: DocumentSchema, signal })
 }
+
+// ─── Hierarchy writes ───────────────────────────────────────────────────────
+
+/** Kebab-case slug from a display name; matches the server's SlugSchema. */
+export function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64)
+}
+
+export function createProject(orgId: string, name: string): Promise<Project> {
+  return apiFetch('/api/v1/projects', {
+    method: 'POST',
+    body: { orgId, name, slug: slugify(name) },
+    schema: ProjectSchema,
+  })
+}
+
+export function createFolder(
+  pid: string,
+  name: string,
+  parentFolderId?: string | null,
+): Promise<Folder> {
+  return apiFetch(`/api/v1/projects/${pid}/folders`, {
+    method: 'POST',
+    body: { name, parentFolderId: parentFolderId ?? null },
+    schema: FolderSchema,
+  })
+}
+
+export function createDocument(fid: string, title: string): Promise<Document> {
+  return apiFetch(`/api/v1/folders/${fid}/documents`, {
+    method: 'POST',
+    body: { title, kind: 'authored' as const },
+    schema: DocumentSchema,
+  })
+}

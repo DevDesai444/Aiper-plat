@@ -35,6 +35,17 @@ export async function provisionAndClaim(pool: pg.Pool, jwtUser: SessionUser): Pr
       [jwtUser.id, jwtUser.email, jwtUser.displayName, jwtUser.avatarUrl],
     )
 
+    // One deployment = one organization. Every authenticated user is a
+    // member of it — membership is what lets them create projects; it
+    // grants no access to any project's content (that stays explicit
+    // via access_grants).
+    await client.query(
+      `INSERT INTO org_members (org_id, user_id, role)
+       SELECT id, $1, 'member' FROM organizations WHERE slug = 'default'
+       ON CONFLICT DO NOTHING`,
+      [jwtUser.id],
+    )
+
     // Case-insensitive email match — Supabase gives us the address in
     // whatever case the user typed, and E2's invitation writer may or
     // may not normalize. LOWER on both sides means the claim is safe

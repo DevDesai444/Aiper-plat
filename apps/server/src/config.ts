@@ -18,6 +18,11 @@ const ConfigInputSchema = z.object({
   // sent, so we're not throttled by Supabase's shared SMTP quota.
   SUPABASE_URL: z.string().url().optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(20).optional(),
+  // Display name of THE organization this deployment serves. Aiper is
+  // deployed per-customer (on-prem model): one instance, one org, the
+  // customer's SSO. Every provisioned user auto-joins it. Multi-org
+  // stays possible at the schema level for a future SaaS mode.
+  AIPER_ORG_NAME: z.string().min(1).default('Aiper'),
   SUPABASE_JWT_ISSUER: z.string().url().optional(),
   // Postgres — all four are required. PGHOST / PGPORT have sensible
   // defaults; the credentials + database name have none, so Zod fails

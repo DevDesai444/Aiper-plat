@@ -20,6 +20,7 @@ function buildConfig(): Config {
     PORT: 0,
     HOST: '127.0.0.1',
     LOG_LEVEL: 'silent',
+  AIPER_ORG_NAME: 'Aiper',
     SUPABASE_JWT_TEST_SECRET: 'test-secret-plenty-long-enough-for-hs256',
     SUPABASE_JWT_ISSUER: 'https://test-project.supabase.co/auth/v1',
     PGHOST: t.host,

@@ -6,6 +6,7 @@ const BASE_ENV: NodeJS.ProcessEnv = {
   PORT: '8787',
   HOST: '127.0.0.1',
   LOG_LEVEL: 'silent',
+  AIPER_ORG_NAME: 'Aiper',
   // Postgres credentials must be present for loadConfig to succeed at all.
   PGUSER: 'aiper',
   PGPASSWORD: 'aiper_dev',

@@ -29,6 +29,7 @@ function buildConfig(): Config {
     PORT: 0,
     HOST: '127.0.0.1',
     LOG_LEVEL: 'silent',
+  AIPER_ORG_NAME: 'Aiper',
     SUPABASE_JWT_TEST_SECRET: SECRET,
     SUPABASE_JWT_ISSUER: ISSUER,
     PGHOST: t.host,

@@ -190,6 +190,49 @@
   padding: 0;
   text-align: left;
 }
+/* ---------- Inline create form (new project / folder / document) ---------- */
+.create-block {
+  margin-top: 14px;
+  max-width: 460px;
+}
+.create-row {
+  display: flex;
+  gap: 8px;
+}
+.create-row input {
+  flex: 1;
+  background: transparent;
+  border: 1px solid var(--dv);
+  color: var(--ink);
+  font-size: 13px;
+  padding: 8px 10px;
+}
+.create-row input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+.create-row button {
+  background: var(--color-accent);
+  border: none;
+  color: #10141a;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 8px 14px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.create-row button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.create-error {
+  color: var(--hi);
+  font-size: 12px;
+  margin-top: 6px;
+}
+
 .login-alt-actions {
   display: flex;
   flex-direction: column;

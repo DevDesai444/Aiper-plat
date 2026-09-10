@@ -10,6 +10,7 @@ const CONFIG: Config = {
   PORT: 8787,
   HOST: '127.0.0.1',
   LOG_LEVEL: 'silent',
+  AIPER_ORG_NAME: 'Aiper',
   SUPABASE_JWT_TEST_SECRET: SECRET,
   SUPABASE_JWT_ISSUER: ISSUER,
   // Verifier is DB-free — these values are inert.

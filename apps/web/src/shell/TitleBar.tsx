@@ -30,7 +30,11 @@ export function TitleBar() {
           <button
             type="button"
             className="titlebar-avatar"
-            title={`${user.displayName} <${user.email}> — click to sign out`}
+            title={`${
+              user.displayName && user.displayName !== user.email
+                ? `${user.displayName} · ${user.email}`
+                : user.email
+            } — click to sign out`}
             onClick={() => void signOut()}
           >
             {initials}

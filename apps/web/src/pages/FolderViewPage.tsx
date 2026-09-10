@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { Document, Folder } from '@aiper/shared/types'
-import { getFolder, listFolderDocuments } from '../api/endpoints'
+import { createDocument, getFolder, listFolderDocuments } from '../api/endpoints'
 import { ApiFetchError } from '../api/client'
+import { CreateRow } from './CreateRow'
 import './pages.css'
 
 /**
@@ -12,6 +13,7 @@ import './pages.css'
  */
 export function FolderViewPage() {
   const { pid, fid } = useParams<{ pid: string; fid: string }>()
+  const navigate = useNavigate()
   const [folder, setFolder] = useState<Folder | null>(null)
   const [documents, setDocuments] = useState<Document[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -67,6 +69,16 @@ export function FolderViewPage() {
               </Link>
             ))}
           </div>
+        )}
+        {fid && (
+          <CreateRow
+            placeholder="New document title — e.g. TVAC Test Report"
+            buttonLabel="Create document"
+            onCreate={async (title) => {
+              const doc = await createDocument(fid, title)
+              navigate(`/p/${pid}/f/${fid}/d/${doc.id}`)
+            }}
+          />
         )}
       </section>
     </div>
