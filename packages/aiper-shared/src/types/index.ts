@@ -57,3 +57,7 @@ export interface ApiError {
   error: string
   code?: string
 }
+
+// Audit chain types (AuditEntry, ChainVerification) — E1 owns; kept in
+// their own file so this barrel does not grow linearly.
+export * from './audit.js'
