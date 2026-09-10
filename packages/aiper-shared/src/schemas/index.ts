@@ -39,3 +39,6 @@ export * from './audit.js'
 // comments) — E2 owns; kept in their own file so the two teams don't collide
 // on this barrel every week.
 export * from './hierarchy.js'
+
+// Blob schemas (UploadResponseSchema) — pairs 1:1 with ../types/blobs.ts.
+export * from './blobs.js'
