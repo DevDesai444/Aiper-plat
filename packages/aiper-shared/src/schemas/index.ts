@@ -34,3 +34,8 @@ export const ApiErrorSchema = z.object({
 // Audit chain schemas — E1 owns; kept in their own file so this barrel
 // does not grow linearly.
 export * from './audit.js'
+
+// Hierarchy schemas (organizations, projects, folders, documents, tree,
+// comments) — E2 owns; kept in their own file so the two teams don't collide
+// on this barrel every week.
+export * from './hierarchy.js'
