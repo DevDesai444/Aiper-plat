@@ -14,6 +14,14 @@ const ConfigInputSchema = z.object({
   SUPABASE_JWKS_URL: z.string().url().optional(),
   SUPABASE_JWT_TEST_SECRET: z.string().min(16).optional(),
   SUPABASE_JWT_ISSUER: z.string().url().optional(),
+  // Postgres — required at boot by index.ts. Optional at the schema
+  // level so unit tests can build a Config without them and skip the
+  // audit route wiring.
+  PGHOST: z.string().min(1).optional(),
+  PGPORT: z.coerce.number().int().positive().optional(),
+  PGUSER: z.string().min(1).optional(),
+  PGPASSWORD: z.string().min(1).optional(),
+  PGDATABASE: z.string().min(1).optional(),
 })
 
 /**

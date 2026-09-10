@@ -10,7 +10,7 @@
     "start": "tsx src/index.ts",
     "migrate": "tsx src/db/migrate-cli.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test test/*.test.ts"
+    "test": "tsx --test --test-concurrency=1 test/*.test.ts"
   },
   "dependencies": {
     "@aiper/shared": "workspace:*",

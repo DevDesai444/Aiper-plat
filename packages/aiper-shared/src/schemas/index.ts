@@ -30,3 +30,7 @@ export const ApiErrorSchema = z.object({
   error: z.string(),
   code: z.string().optional(),
 })
+
+// Audit chain schemas — E1 owns; kept in their own file so this barrel
+// does not grow linearly.
+export * from './audit.js'
