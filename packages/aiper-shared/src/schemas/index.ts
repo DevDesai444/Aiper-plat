@@ -42,3 +42,8 @@ export * from './hierarchy.js'
 
 // Blob schemas (UploadResponseSchema) — pairs 1:1 with ../types/blobs.ts.
 export * from './blobs.js'
+
+// Snapshot schemas (DocumentSnapshotSchema, SnapshotListSchema,
+// SaveRequestSchema, SnapshotReasonSchema) — E3 owns; pairs 1:1 with
+// ../types/snapshots.ts.
+export * from './snapshots.js'
