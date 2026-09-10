@@ -20,6 +20,7 @@ interface SessionState {
   busy: boolean
 
   signInWithPassword: (email: string, password: string) => Promise<void>
+  signUpWithPassword: (email: string, password: string) => Promise<void>
   signInWithMagicLink: (email: string) => Promise<void>
   signOut: () => Promise<void>
   /**
@@ -67,6 +68,30 @@ export const useSessionStore = create<SessionState>((set) => ({
       return
     }
     // onAuthStateChange handles the rest — no need to set status here.
+    set({ busy: false })
+  },
+
+  signUpWithPassword: async (email, password) => {
+    set({ busy: true, error: null })
+    const { data, error } = await supabase.auth.signUp({ email, password })
+    if (error) {
+      set({ busy: false, error: error.message })
+      return
+    }
+    // With `Enable email confirmations` OFF in Supabase Auth → Providers →
+    // Email, `signUp` returns a session immediately and onAuthStateChange
+    // fires with SIGNED_IN — the user is in without touching their inbox.
+    // With confirmations ON, session is null and we surface a "check your
+    // email" message; the user completes signup by clicking the link.
+    if (!data.session) {
+      set({
+        busy: false,
+        error:
+          'Account created. Check your email to confirm before signing in ' +
+          '— then come back and use "Sign in with a password".',
+      })
+      return
+    }
     set({ busy: false })
   },
 

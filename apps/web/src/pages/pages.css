@@ -186,9 +186,17 @@
   border: none;
   color: var(--color-accent);
   font-size: 12px;
-  margin-top: 14px;
   cursor: pointer;
   padding: 0;
+  text-align: left;
+}
+.login-alt-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--dv);
 }
 .login-error {
   border: 1px solid color-mix(in srgb, var(--hi) 45%, transparent);

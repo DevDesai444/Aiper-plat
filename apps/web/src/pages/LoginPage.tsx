@@ -6,26 +6,39 @@ import { z } from 'zod'
 import { useSessionStore } from '../auth/sessionStore'
 import './pages.css'
 
-type Mode = 'password' | 'magic'
+type Mode = 'signin' | 'signup' | 'magic'
 
-const PasswordFormSchema = z.object({
+const SigninFormSchema = z.object({
   email: z.string().email('Enter a valid email address'),
   password: z.string().min(1, 'Password required'),
 })
-type PasswordForm = z.infer<typeof PasswordFormSchema>
+type SigninForm = z.infer<typeof SigninFormSchema>
+
+const SignupFormSchema = z.object({
+  email: z.string().email('Enter a valid email address'),
+  password: z.string().min(8, 'At least 8 characters'),
+})
+type SignupForm = z.infer<typeof SignupFormSchema>
 
 const MagicFormSchema = z.object({
   email: z.string().email('Enter a valid email address'),
 })
 type MagicForm = z.infer<typeof MagicFormSchema>
 
+const HEADINGS: Record<Mode, { title: string; subtitle: string }> = {
+  signin: { title: 'Aiper', subtitle: 'Sign in to continue' },
+  signup: { title: 'Aiper', subtitle: 'Create your account' },
+  magic: { title: 'Aiper', subtitle: 'Sign in with a magic link' },
+}
+
 export function LoginPage() {
-  const [mode, setMode] = useState<Mode>('password')
+  const [mode, setMode] = useState<Mode>('signin')
   const [magicSent, setMagicSent] = useState(false)
   const status = useSessionStore((s) => s.status)
   const busy = useSessionStore((s) => s.busy)
   const error = useSessionStore((s) => s.error)
   const signInWithPassword = useSessionStore((s) => s.signInWithPassword)
+  const signUpWithPassword = useSessionStore((s) => s.signUpWithPassword)
   const signInWithMagicLink = useSessionStore((s) => s.signInWithMagicLink)
   const location = useLocation()
   const navigate = useNavigate()
@@ -39,11 +52,13 @@ export function LoginPage() {
     }
   }, [status, location.state, navigate])
 
+  const heading = HEADINGS[mode]
+
   return (
     <div className="centered-page">
       <div className="login-card">
-        <h1 className="login-title">Aiper</h1>
-        <p className="login-subtitle">Sign in to continue</p>
+        <h1 className="login-title">{heading.title}</h1>
+        <p className="login-subtitle">{heading.subtitle}</p>
 
         {error && <div className="login-error">{error}</div>}
         {magicSent && mode === 'magic' && !error && (
@@ -52,13 +67,20 @@ export function LoginPage() {
           </div>
         )}
 
-        {mode === 'password' ? (
-          <PasswordForm
+        {mode === 'signin' && (
+          <SigninFormFields
             busy={busy}
             onSubmit={(v) => void signInWithPassword(v.email, v.password)}
           />
-        ) : (
-          <MagicForm
+        )}
+        {mode === 'signup' && (
+          <SignupFormFields
+            busy={busy}
+            onSubmit={(v) => void signUpWithPassword(v.email, v.password)}
+          />
+        )}
+        {mode === 'magic' && (
+          <MagicFormFields
             busy={busy}
             onSubmit={async (v) => {
               setMagicSent(false)
@@ -68,47 +90,78 @@ export function LoginPage() {
           />
         )}
 
-        <button
-          type="button"
-          className="login-toggle"
-          onClick={() => {
-            setMode(mode === 'password' ? 'magic' : 'password')
-            setMagicSent(false)
-          }}
-        >
-          {mode === 'password'
-            ? 'Sign in with a magic link instead'
-            : 'Sign in with a password instead'}
-        </button>
+        <div className="login-alt-actions">
+          {mode !== 'signin' && (
+            <button
+              type="button"
+              className="login-toggle"
+              onClick={() => {
+                setMode('signin')
+                setMagicSent(false)
+              }}
+            >
+              Sign in with a password
+            </button>
+          )}
+          {mode !== 'signup' && (
+            <button
+              type="button"
+              className="login-toggle"
+              onClick={() => {
+                setMode('signup')
+                setMagicSent(false)
+              }}
+            >
+              Create a new account
+            </button>
+          )}
+          {mode !== 'magic' && (
+            <button
+              type="button"
+              className="login-toggle"
+              onClick={() => {
+                setMode('magic')
+                setMagicSent(false)
+              }}
+            >
+              Sign in with a magic link
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )
 }
 
-function PasswordForm({
+function SigninFormFields({
   busy,
   onSubmit,
 }: {
   busy: boolean
-  onSubmit: (values: PasswordForm) => void
+  onSubmit: (values: SigninForm) => void
 }) {
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<PasswordForm>({ resolver: zodResolver(PasswordFormSchema) })
+  } = useForm<SigninForm>({ resolver: zodResolver(SigninFormSchema) })
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate>
       <div className="login-field">
-        <label htmlFor="email">Email</label>
-        <input id="email" type="email" autoComplete="email" {...register('email')} />
+        <label htmlFor="signin-email">Email</label>
+        <input
+          id="signin-email"
+          type="email"
+          autoComplete="email"
+          {...register('email')}
+        />
         {errors.email && <span className="login-field-error">{errors.email.message}</span>}
       </div>
       <div className="login-field">
-        <label htmlFor="password">Password</label>
+        <label htmlFor="signin-password">Password</label>
         <input
-          id="password"
+          id="signin-password"
           type="password"
           autoComplete="current-password"
           {...register('password')}
@@ -124,7 +177,51 @@ function PasswordForm({
   )
 }
 
-function MagicForm({
+function SignupFormFields({
+  busy,
+  onSubmit,
+}: {
+  busy: boolean
+  onSubmit: (values: SignupForm) => void
+}) {
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<SignupForm>({ resolver: zodResolver(SignupFormSchema) })
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} noValidate>
+      <div className="login-field">
+        <label htmlFor="signup-email">Email</label>
+        <input
+          id="signup-email"
+          type="email"
+          autoComplete="email"
+          {...register('email')}
+        />
+        {errors.email && <span className="login-field-error">{errors.email.message}</span>}
+      </div>
+      <div className="login-field">
+        <label htmlFor="signup-password">Password (at least 8 characters)</label>
+        <input
+          id="signup-password"
+          type="password"
+          autoComplete="new-password"
+          {...register('password')}
+        />
+        {errors.password && (
+          <span className="login-field-error">{errors.password.message}</span>
+        )}
+      </div>
+      <button type="submit" className="login-submit" disabled={busy}>
+        {busy ? 'Creating account…' : 'Create account'}
+      </button>
+    </form>
+  )
+}
+
+function MagicFormFields({
   busy,
   onSubmit,
 }: {
