@@ -1,0 +1,104 @@
+/*
+ * <ActivityPanel> styles. Fits inside a .page-section on the project
+ * overview; no fixed positioning. Reads from tokens.css.
+ */
+
+.activity-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.activity-muted {
+  color: var(--mut2);
+  font-size: 12px;
+  font-style: italic;
+  margin: 4px 0;
+}
+.activity-error {
+  border: 1px solid color-mix(in srgb, var(--hi) 45%, transparent);
+  color: var(--hi);
+  font-size: 12px;
+  padding: 8px 10px;
+}
+.activity-error button {
+  background: none;
+  border: 1px solid var(--dv);
+  color: var(--ink);
+  padding: 5px 10px;
+  margin-top: 6px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.activity-error button:hover {
+  border-color: var(--color-accent);
+}
+
+.activity-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  border: 1px solid var(--dv2);
+  background: var(--chrome);
+}
+.activity-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--dv2);
+  color: var(--ink);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.activity-row:first-child {
+  border-top: none;
+}
+.activity-actor {
+  font-weight: 600;
+  color: var(--ink);
+}
+.activity-verb {
+  color: var(--mut);
+}
+.activity-reason {
+  color: var(--mut2);
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 400px;
+}
+.activity-when {
+  margin-left: auto;
+  color: var(--mut2);
+  font-size: 11px;
+  font-family: var(--font-label);
+  letter-spacing: 0.02em;
+}
+
+.activity-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 4px;
+}
+.activity-more button {
+  background: none;
+  border: 1px solid var(--dv);
+  color: var(--ink);
+  font-family: var(--font-label);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 7px 18px;
+  cursor: pointer;
+}
+.activity-more button:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+.activity-more button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}

@@ -10,6 +10,7 @@ import {
 import { ApiFetchError } from '../api/client'
 import { ShareDialog } from '../components/ShareDialog'
 import { RowActions } from '../components/RowActions'
+import { ActivityPanel } from '../components/ActivityPanel'
 import '../components/share.css'
 import '../components/rowActions.css'
 import './pages.css'
@@ -166,6 +167,11 @@ export function ProjectOverviewPage() {
                 <span className="card-sub">Cross-document findings — E9</span>
               </Link>
             </div>
+          </section>
+
+          <section className="page-section">
+            <div className="page-section-label">Activity</div>
+            <ActivityPanel projectId={project.id} />
           </section>
         </>
       )}
