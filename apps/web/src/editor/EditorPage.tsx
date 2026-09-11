@@ -28,6 +28,8 @@ import {
   slugifyForDocxFilename,
   type PMNode,
 } from './docxExport'
+import { convertDocxToHtml } from './docxImport'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import './editor.css'
 
 /**
@@ -153,6 +155,16 @@ function EditorPageInner({ did, pid, fid }: { did: string; pid: string; fid: str
   // leaks no new data).
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
+
+  // PR-6 DOCX import — editor+ only. `pendingImport` holds the
+  // File-to-be-imported while the ConfirmDialog is open on a non-empty
+  // document (peers can be actively editing; replacing without confirm
+  // would silently clobber their work). Empty docs skip the confirm.
+  const importFileInputRef = useRef<HTMLInputElement | null>(null)
+  const [importing, setImporting] = useState(false)
+  const [importError, setImportError] = useState<string | null>(null)
+  const [importWarningCount, setImportWarningCount] = useState(0)
+  const [pendingImport, setPendingImport] = useState<File | null>(null)
 
   // Destroy the Y.Doc + Awareness on unmount. Kept separate from the
   // load effect so the load can rerun (StrictMode double-invoke, later
@@ -371,6 +383,50 @@ function EditorPageInner({ did, pid, fid }: { did: string; pid: string; fid: str
     }
   }, [editor, exporting, documentTitle])
 
+  // Actually perform the import — reads the file bytes, runs them
+  // through mammoth, and drops the resulting HTML into the editor via
+  // `setContent`. That goes through TipTap's parser (mapping onto the
+  // StarterKit schema) and — because Collaboration is bound — writes
+  // the resulting doc into the shared Y.Doc so peers see the import
+  // live. Fidelity notes for unsupported constructs are in docxImport.
+  const applyImportedFile = useCallback(
+    async (file: File): Promise<void> => {
+      if (!editor) return
+      setImporting(true)
+      setImportError(null)
+      setImportWarningCount(0)
+      try {
+        const { html, warnings } = await convertDocxToHtml(file)
+        editor.commands.setContent(html, true)
+        setImportWarningCount(warnings.length)
+      } catch (err: unknown) {
+        setImportError(describeError(err))
+      } finally {
+        setImporting(false)
+      }
+    },
+    [editor],
+  )
+
+  // File-input onChange. Reads the current editor content to decide
+  // whether to prompt: an empty document (no text at all) imports
+  // silently, a non-empty one goes through the ConfirmDialog. The
+  // input value is reset so the same filename can be re-picked.
+  const onImportFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>): void => {
+      const file = e.target.files?.[0] ?? null
+      e.target.value = ''
+      if (!file || !editable || !editor) return
+      const currentText = editor.state.doc.textContent.trim()
+      if (currentText.length === 0) {
+        void applyImportedFile(file)
+      } else {
+        setPendingImport(file)
+      }
+    },
+    [editable, editor, applyImportedFile],
+  )
+
   // Yjs WebSocket provider — spawns after the initial HTTP load resolves
   // so hydrated bytes are already in the Y.Doc; the provider's own
   // SyncStep1 then only asks the server for what is truly missing.
@@ -442,6 +498,34 @@ function EditorPageInner({ did, pid, fid }: { did: string; pid: string; fid: str
           {exporting ? 'Exporting…' : 'Export DOCX'}
         </button>
         {editable && (
+          <>
+            <input
+              ref={importFileInputRef}
+              type="file"
+              accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              onChange={onImportFileChange}
+              style={{ display: 'none' }}
+              data-testid="editor-import-input"
+              aria-hidden="true"
+            />
+            <button
+              type="button"
+              className="editor-titlebar-btn"
+              onClick={() => importFileInputRef.current?.click()}
+              disabled={importing}
+              title={
+                importError
+                  ? `Import failed — ${importError}`
+                  : importWarningCount > 0
+                    ? `Last import produced ${importWarningCount} warning${importWarningCount === 1 ? '' : 's'} (some formatting may have been dropped)`
+                    : 'Replace this document with the contents of a .docx file'
+              }
+            >
+              {importing ? 'Importing…' : 'Import DOCX'}
+            </button>
+          </>
+        )}
+        {editable && (
           <button
             type="button"
             className="editor-titlebar-btn"
@@ -478,6 +562,28 @@ function EditorPageInner({ did, pid, fid }: { did: string; pid: string; fid: str
         onCancelCompose={cancelCompose}
         onAfterDelete={stripCommentMark}
       />
+      {pendingImport && (
+        <ConfirmDialog
+          title="Replace this document?"
+          message={
+            <>
+              Importing <strong>{pendingImport.name}</strong> will replace
+              every paragraph of this document, and any peers editing it
+              live will see the replacement immediately. This cannot be
+              undone from the editor — you would need to revert from a
+              save-history snapshot.
+            </>
+          }
+          confirmLabel="Replace and import"
+          danger
+          onConfirm={async () => {
+            const file = pendingImport
+            setPendingImport(null)
+            await applyImportedFile(file)
+          }}
+          onClose={() => setPendingImport(null)}
+        />
+      )}
     </div>
   )
 }
