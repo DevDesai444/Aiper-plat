@@ -1,5 +1,7 @@
 import { z } from 'zod'
 import type {
+  AiperSubject,
+  AuditPage,
   Document,
   DocumentSnapshot,
   Folder,
@@ -10,6 +12,7 @@ import type {
   SessionUser,
 } from '@aiper/shared/types'
 import {
+  AuditPageSchema,
   DocumentSchema,
   DocumentSnapshotSchema,
   FolderSchema,
@@ -381,4 +384,51 @@ export async function searchInProject(
     { schema: SearchResponseSchema, signal },
   )
   return results
+}
+
+// ─── Audit / activity ─────────────────────────────────────────────────────
+
+/**
+ * Filter set for GET /api/v1/audit. All fields optional; `subjectType` and
+ * `subjectId` must be provided together (server enforces — a 400 comes back
+ * if only one is set). `before` and `cursor` are alternative page-back
+ * mechanisms — server accepts either; the cursor is opaque base64url from
+ * a prior page's `nextCursor`.
+ */
+export interface AuditFilters {
+  subjectType?: AiperSubject
+  subjectId?: string
+  userId?: string
+  action?: string
+  before?: string
+  limit?: number
+  cursor?: string
+}
+
+function auditParams(filters: AuditFilters): string {
+  const params = new URLSearchParams()
+  if (filters.subjectType) params.set('subjectType', filters.subjectType)
+  if (filters.subjectId) params.set('subjectId', filters.subjectId)
+  if (filters.userId) params.set('userId', filters.userId)
+  if (filters.action) params.set('action', filters.action)
+  if (filters.before) params.set('before', filters.before)
+  if (filters.limit != null) params.set('limit', String(filters.limit))
+  if (filters.cursor) params.set('cursor', filters.cursor)
+  return params.toString()
+}
+
+/**
+ * One page of audit rows scoped to what the caller can see. The server
+ * returns `{ entries, nextCursor }`; nextCursor is null on the last page
+ * and an opaque token to pass back for the next page otherwise.
+ */
+export function getAuditPage(
+  filters: AuditFilters,
+  signal?: AbortSignal,
+): Promise<AuditPage> {
+  const qs = auditParams(filters)
+  return apiFetch(`/api/v1/audit${qs ? `?${qs}` : ''}`, {
+    schema: AuditPageSchema,
+    signal,
+  })
 }
