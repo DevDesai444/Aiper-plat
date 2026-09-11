@@ -85,3 +85,6 @@ export * from './search.js'
 // ProductNodeKind, NodeDocumentRelation) — E3 owns; kept in their
 // own file so this barrel does not grow linearly.
 export * from './product-tree.js'
+// Doc-link types (DocumentLink, DocumentLinksResponse,
+// DocumentLinkCreateInput) — pairs 1:1 with ../schemas/doc-links.ts.
+export * from './doc-links.js'
