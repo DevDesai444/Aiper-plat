@@ -2,11 +2,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useEditor, EditorContent } from '@tiptap/react'
 import * as Y from 'yjs'
+import { Awareness } from 'y-protocols/awareness'
 import * as buffer from 'lib0/buffer'
 import type { AiperRole, Document } from '@aiper/shared/types'
 import { ApiFetchError } from '../api/client'
+import { supabase } from '../auth/supabase'
+import { useSessionStore } from '../auth/sessionStore'
 import { getDocument, getSnapshotState, postSave } from '../api/endpoints'
 import { buildEditorExtensions } from './schema'
+import {
+  AiperCollabProvider,
+  collabCursorColorForUser,
+  type CollabStatus,
+} from './collabProvider'
 import { HistoryPanel } from './HistoryPanel'
 import './editor.css'
 
@@ -16,27 +24,33 @@ import './editor.css'
  * — because a document's parent is a data attribute (`Document.folderId`
  * vs `Document.projectId`) that does not change the editor's behaviour.
  *
- * PR-1 landed the read-only load path. PR-2 (this file, extended)
- * adds:
+ * PR-1 landed the read-only load path.
+ * PR-2 added role-gated editing, Cmd/Ctrl-S + Save button + saved
+ *      indicator, and a dirty tracker that keeps edits landing during
+ *      a save-in-flight from being silently cleared on success.
+ * PR-3 (this file, extended) wires the Yjs WebSocket provider:
  *
- *   • Role-gated editing. `editor+` and `owner` are writable; `viewer`
- *     stays read-only and never sees the Save button. Role is fixed for
- *     the life of the mount — a grant change during the session means
- *     the user reloads (matches the WS handshake's own frozen-role
- *     policy on the server side).
+ *   • Live sync. After the initial HTTP load resolves, an
+ *     `AiperCollabProvider` connects to `/ws?token=<jwt>&doc=<did>`
+ *     and starts relaying doc + awareness updates between this
+ *     client and the server room. Remote edits from peers apply
+ *     into the same Y.Doc TipTap is bound to, so the ProseMirror
+ *     document updates without any additional plumbing.
  *
- *   • Explicit Save. Cmd/Ctrl-S + a titlebar button. Encodes the
- *     current Y.Doc state and POSTs it to `/documents/:did/save`; the
- *     server's returned `savedAt` drives the "Saved HH:MM" indicator so
- *     the clock is server-authoritative.
+ *   • Remote cursors. `@tiptap/extension-collaboration-cursor` reads
+ *     from the same Awareness the provider broadcasts on, so peers'
+ *     cursors + names paint as decorations in this editor.
  *
- *   • Dirty tracking. Local ydoc updates (any origin other than
- *     `'hydrate'`, which the load path uses) flip the "unsaved" flag.
- *     A per-render stamp keeps edits that land during a save-in-flight
- *     from being silently cleared on the save's success.
+ *   • Editable vs viewer. Every role connects (viewers see live
+ *     edits and cursors), but only editor+ actually broadcasts doc
+ *     updates — the server also drops viewer writes silently, but we
+ *     don't bother sending them.
  *
- * The Yjs WebSocket provider (real-time collab, remote cursors, auto-
- * save via the server's own tick) lands in PR-3, separately.
+ *   • Manual Save coexists. The WS server auto-snapshots the room
+ *     every ~30 s (durability), so real-time edits are safe even
+ *     without manual saves. Cmd/Ctrl-S stays as an explicit
+ *     "checkpoint" that flows `reason` into audit_log — durability
+ *     vs intent split, matching the server's SnapshotReason policy.
  *
  * The Y.Doc's lifecycle is per-mount: creating one, hydrating from
  * bytes, and destroying it are cheap enough that we don't try to share
@@ -77,12 +91,33 @@ function canWrite(role: AiperRole | null | undefined): boolean {
 }
 
 function EditorPageInner({ did, pid, fid }: { did: string; pid: string; fid: string | null }) {
-  // A fresh Y.Doc per mount. `useState` (rather than `useMemo`) is the
-  // React-idiomatic pattern for per-instance mutable state — StrictMode's
-  // double-invoke reruns the initializer but discards the extra Y.Doc,
-  // and the cleanup below tears down the one we kept.
-  const [ydoc] = useState(() => new Y.Doc())
-  const extensions = useMemo(() => buildEditorExtensions(ydoc), [ydoc])
+  // Fresh Y.Doc + Awareness per mount. `useState`'s initializer runs
+  // once per mount even under StrictMode double-invoke (the extra
+  // instance is discarded), so a single combined initializer keeps the
+  // two objects paired for their whole lifetime.
+  const [{ ydoc, awareness }] = useState(() => {
+    const d = new Y.Doc()
+    return { ydoc: d, awareness: new Awareness(d) }
+  })
+
+  // Cursor identity captured once at mount from the session store. Uses
+  // `.getState()` rather than the subscription form because per-user
+  // display info is stable while the editor is mounted — resubscribing
+  // per render would re-invalidate extensions and remount the editor.
+  const [cursorUser] = useState<{ name: string; color: string } | null>(() => {
+    const u = useSessionStore.getState().user
+    if (!u) return null
+    return { name: u.displayName, color: collabCursorColorForUser(u.id) }
+  })
+
+  const extensions = useMemo(
+    () =>
+      buildEditorExtensions({
+        ydoc,
+        cursor: cursorUser ? { awareness, user: cursorUser } : undefined,
+      }),
+    [ydoc, awareness, cursorUser],
+  )
 
   const [state, setState] = useState<LoadState>({
     status: 'loading',
@@ -91,10 +126,20 @@ function EditorPageInner({ did, pid, fid }: { did: string; pid: string; fid: str
   })
   const [saveState, setSaveState] = useState<SaveState>(INITIAL_SAVE)
 
-  // Destroy the Y.Doc on unmount. Kept separate from the load effect so
-  // the load can rerun (StrictMode double-invoke, later refetches) without
-  // stealing the ydoc's own cleanup.
-  useEffect(() => () => ydoc.destroy(), [ydoc])
+  // 'off' — provider not spawned yet (or torn down). Provider callbacks
+  // move this through connecting → connected → disconnected / terminal.
+  const [collabStatus, setCollabStatus] = useState<CollabStatus | 'off'>('off')
+
+  // Destroy the Y.Doc + Awareness on unmount. Kept separate from the
+  // load effect so the load can rerun (StrictMode double-invoke, later
+  // refetches) without stealing this cleanup. Awareness is destroyed
+  // before the Y.Doc so its `beforeunload` cleanup finds an intact doc.
+  useEffect(() => {
+    return () => {
+      awareness.destroy()
+      ydoc.destroy()
+    }
+  }, [ydoc, awareness])
 
   useEffect(() => {
     const ac = new AbortController()
@@ -224,6 +269,38 @@ function EditorPageInner({ did, pid, fid }: { did: string; pid: string; fid: str
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
+  // Yjs WebSocket provider — spawns after the initial HTTP load resolves
+  // so hydrated bytes are already in the Y.Doc; the provider's own
+  // SyncStep1 then only asks the server for what is truly missing.
+  //
+  // We skip provider spawn when there is no signed-in user, since we
+  // have no cursor identity and no token to authenticate with. In prod
+  // `RequireSession` guarantees a user by the time this route mounts,
+  // so this branch mostly matters for unit tests.
+  useEffect(() => {
+    if (state.status !== 'ready' || !state.document) return
+    if (!cursorUser) return
+    const editable = canWrite(state.document.myRole)
+    setCollabStatus('connecting')
+    const provider = new AiperCollabProvider({
+      ydoc,
+      awareness,
+      documentId: did,
+      editable,
+      getToken: async () => {
+        const { data } = await supabase.auth.getSession()
+        return data.session?.access_token ?? null
+      },
+      onStatus: setCollabStatus,
+      // onError is intentionally silent — status drives the UI dot;
+      // console logging is a later concern once we have a debug channel.
+    })
+    return () => {
+      provider.destroy()
+      setCollabStatus('off')
+    }
+  }, [state.status, state.document?.myRole, did, ydoc, awareness, cursorUser])
+
   if (state.status === 'loading') {
     return <div className="page-loading">Loading document…</div>
   }
@@ -247,6 +324,7 @@ function EditorPageInner({ did, pid, fid }: { did: string; pid: string; fid: str
           <Link to={fid ? `/p/${pid}/f/${fid}` : `/p/${pid}`}>← back</Link>
         </div>
         <h1 className="editor-titlebar-title">{doc.title}</h1>
+        <CollabStatusDot status={collabStatus} />
         <SaveStatusPill save={saveState} editable={editable} />
         {editable && (
           <button
@@ -267,6 +345,30 @@ function EditorPageInner({ did, pid, fid }: { did: string; pid: string; fid: str
       </div>
       <HistoryPanel documentId={did} />
     </div>
+  )
+}
+
+/**
+ * Small dot showing the WS provider's connection status. Rendered only
+ * once the provider has spawned; hidden while the initial load is in
+ * flight (`status === 'off'`) so users don't see a red dot before we
+ * even try to connect.
+ */
+function CollabStatusDot({ status }: { status: CollabStatus | 'off' }) {
+  if (status === 'off') return null
+  const labels: Record<CollabStatus, string> = {
+    connecting: 'Connecting to live sync…',
+    connected: 'Live sync connected',
+    disconnected: 'Reconnecting to live sync…',
+    terminal: 'Live sync offline',
+  }
+  return (
+    <span
+      className={`editor-collab-dot editor-collab-dot--${status}`}
+      title={labels[status]}
+      aria-label={labels[status]}
+      role="status"
+    />
   )
 }
 

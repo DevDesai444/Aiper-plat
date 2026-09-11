@@ -87,6 +87,61 @@
   cursor: default;
 }
 
+/* ───── Live-sync connection dot ─────────────────────────────────────── */
+/* A 8px circle in the titlebar, colour-coded by provider status. Deliberate
+ * subtlety: users notice a red dot but do not need to notice a green one. */
+.editor-collab-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--mut2);
+  transition: background-color 0.15s ease-in;
+}
+.editor-collab-dot--connected {
+  background: #4caf50;
+}
+.editor-collab-dot--connecting,
+.editor-collab-dot--disconnected {
+  background: var(--med);
+  animation: amPulse 1.4s ease-in-out infinite;
+}
+.editor-collab-dot--terminal {
+  background: var(--hi);
+}
+
+/* ───── Remote cursors — @tiptap/extension-collaboration-cursor ────── */
+/* The extension emits <span class="collaboration-cursor__caret" style="…border-color:#hex">
+ * with a nested <label class="collaboration-cursor__label"> for the name.
+ * We rely on the extension's inline `border-color` for per-user hue so the
+ * palette in collabProvider.ts drives what appears on-screen. */
+.editor-page-content .collaboration-cursor__caret {
+  position: relative;
+  margin-left: -1px;
+  margin-right: -1px;
+  border-left: 1px solid;
+  border-right: 1px solid;
+  word-break: normal;
+  pointer-events: none;
+}
+.editor-page-content .collaboration-cursor__label {
+  position: absolute;
+  top: -1.35em;
+  left: -1px;
+  font-family: var(--font-label);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #fff;
+  background: inherit;
+  padding: 1px 6px;
+  border-radius: 3px 3px 3px 0;
+  white-space: nowrap;
+  user-select: none;
+  pointer-events: none;
+}
+
 .editor-scroll {
   flex: 1 1 auto;
   overflow: auto;
