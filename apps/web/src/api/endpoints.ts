@@ -231,3 +231,102 @@ export async function listProjectDocuments(
   })
   return res.items
 }
+
+// ─── Document rename / move / archive / delete ─────────────────────────────
+//
+// Server enforces the role split (routes/hierarchy/writes/documents.ts):
+//   rename (title) + archive → editor+
+//   move (folderId / projectId, exactly one) → owner
+//   delete → owner
+// The UI hides actions the caller's myRole can't perform; the server is
+// still the authority on any race.
+
+export function renameDocument(did: string, title: string): Promise<Document> {
+  return apiFetch(`/api/v1/documents/${did}`, {
+    method: 'PATCH',
+    body: { title },
+    schema: DocumentSchema,
+  })
+}
+
+/**
+ * Move a document to a new parent within the same project. Pass exactly
+ * one of `folderId` (into that folder) or `projectId` (to the project
+ * root). The server rejects cross-project moves with a 400.
+ */
+export function moveDocument(
+  did: string,
+  target: { folderId: string } | { projectId: string },
+): Promise<Document> {
+  return apiFetch(`/api/v1/documents/${did}`, {
+    method: 'PATCH',
+    body: target,
+    schema: DocumentSchema,
+  })
+}
+
+export function archiveDocument(
+  did: string,
+  archivedAt: string | null,
+): Promise<Document> {
+  return apiFetch(`/api/v1/documents/${did}`, {
+    method: 'PATCH',
+    body: { archivedAt },
+    schema: DocumentSchema,
+  })
+}
+
+/**
+ * Delete a document. Cascades to `document_snapshots` and `comments` on
+ * the server (FK cascades on migrations 007 + 008). Owner-only.
+ */
+export function deleteDocument(did: string): Promise<void> {
+  return apiFetch(`/api/v1/documents/${did}`, { method: 'DELETE' })
+}
+
+// ─── Folder rename / move / archive / delete ───────────────────────────────
+
+export function renameFolder(fid: string, name: string): Promise<Folder> {
+  return apiFetch(`/api/v1/folders/${fid}`, {
+    method: 'PATCH',
+    body: { name },
+    schema: FolderSchema,
+  })
+}
+
+/**
+ * Move a folder within the same project. `parentFolderId: null` means the
+ * project root. The server rejects self-parent, cross-project, and cycle-
+ * making moves with a 400.
+ */
+export function moveFolder(
+  fid: string,
+  parentFolderId: string | null,
+): Promise<Folder> {
+  return apiFetch(`/api/v1/folders/${fid}`, {
+    method: 'PATCH',
+    body: { parentFolderId },
+    schema: FolderSchema,
+  })
+}
+
+export function archiveFolder(
+  fid: string,
+  archivedAt: string | null,
+): Promise<Folder> {
+  return apiFetch(`/api/v1/folders/${fid}`, {
+    method: 'PATCH',
+    body: { archivedAt },
+    schema: FolderSchema,
+  })
+}
+
+/**
+ * Delete a folder. Cascades to child folders, documents, snapshots, and
+ * comments on the server (FK cascades). Owner-only — a folder delete near
+ * a project root can remove a lot of rows, so the confirm dialog warns
+ * the user before the request goes out.
+ */
+export function deleteFolder(fid: string): Promise<void> {
+  return apiFetch(`/api/v1/folders/${fid}`, { method: 'DELETE' })
+}
