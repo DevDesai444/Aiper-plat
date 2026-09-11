@@ -47,3 +47,7 @@ export * from './blobs.js'
 // SaveRequestSchema, SnapshotReasonSchema) — E3 owns; pairs 1:1 with
 // ../types/snapshots.ts.
 export * from './snapshots.js'
+
+// Search schemas (SearchResultSchema, SearchResponseSchema) — pairs 1:1
+// with ../types/search.ts.
+export * from './search.js'
