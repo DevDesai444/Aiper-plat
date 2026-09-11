@@ -55,3 +55,5 @@ export * from './search.js'
 // Product-tree schemas — E3 owns; pairs 1:1 with
 // ../types/product-tree.ts.
 export * from './product-tree.js'
+// Doc-link schemas — pairs 1:1 with ../types/doc-links.ts.
+export * from './doc-links.js'
