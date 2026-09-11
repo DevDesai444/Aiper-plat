@@ -22,6 +22,7 @@ import { registerAccessRoutes } from './routes/hierarchy/access/index.js'
 import { registerSaveFlowRoutes } from './routes/save-flow.js'
 import { registerHistoryRoute } from './routes/history.js'
 import { registerSearchRoutes } from './routes/search.js'
+import { registerProductTreeRoutes } from './routes/product-tree/index.js'
 import { registerWsRoutes } from './ws/index.js'
 import { reqSerializer } from './log-serializers.js'
 import pkg from '../package.json' with { type: 'json' }
@@ -90,6 +91,7 @@ export async function buildServer(config: Config, pool: pg.Pool): Promise<Fastif
   registerSaveFlowRoutes(app, pool)
   registerHistoryRoute(app, pool)
   registerSearchRoutes(app, pool)
+  registerProductTreeRoutes(app, pool)
   registerWsRoutes(app, pool, config)
 
   return app
