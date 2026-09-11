@@ -51,3 +51,6 @@ export * from './snapshots.js'
 // Search schemas (SearchResultSchema, SearchResponseSchema) — pairs 1:1
 // with ../types/search.ts.
 export * from './search.js'
+
+// Doc-link schemas — pairs 1:1 with ../types/doc-links.ts.
+export * from './doc-links.js'

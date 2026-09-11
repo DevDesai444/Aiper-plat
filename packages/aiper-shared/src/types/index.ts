@@ -79,3 +79,7 @@ export * from './snapshots.js'
 // Search types (SearchResult, SearchResponse) — pairs 1:1 with
 // ../schemas/search.ts.
 export * from './search.js'
+
+// Doc-link types (DocumentLink, DocumentLinksResponse,
+// DocumentLinkCreateInput) — pairs 1:1 with ../schemas/doc-links.ts.
+export * from './doc-links.js'
