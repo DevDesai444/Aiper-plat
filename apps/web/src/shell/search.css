@@ -1,0 +1,130 @@
+/*
+ * <GlobalSearch> styles. Lives inside the shell TitleBar's .titlebar-center
+ * slot and centres a fixed-width input with a floating results dropdown.
+ * Every color / dimension reads from tokens.css.
+ */
+
+.global-search {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.global-search-input {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--chrome2);
+  border: 1px solid var(--dv);
+  padding: 3px 8px;
+  height: 26px;
+}
+.global-search-input:focus-within {
+  border-color: var(--color-accent);
+}
+.global-search-icon {
+  color: var(--mut2);
+  flex: none;
+}
+.global-search-input input {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--ink);
+  font-size: 12px;
+  height: 100%;
+}
+.global-search-input input::placeholder {
+  color: var(--mut2);
+}
+.global-search-input input::-webkit-search-cancel-button {
+  display: none;
+}
+.global-search-clear {
+  flex: none;
+  display: flex;
+  align-items: center;
+  background: none;
+  border: none;
+  color: var(--mut2);
+  padding: 2px;
+  cursor: pointer;
+}
+.global-search-clear:hover {
+  color: var(--ink);
+}
+
+/* ---------- Dropdown ---------- */
+.global-search-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 70;
+  background: var(--chrome);
+  border: 1px solid var(--dv);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.global-search-status {
+  padding: 12px;
+  color: var(--mut2);
+  font-size: 12px;
+  font-style: italic;
+}
+.global-search-status--error {
+  color: var(--hi);
+}
+.global-search-scope {
+  padding: 6px 12px;
+  font-family: var(--font-label);
+  font-size: 9.5px;
+  color: var(--mut2);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border-bottom: 1px solid var(--dv2);
+}
+.global-search-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.global-search-list li {
+  border-top: 1px solid var(--dv2);
+}
+.global-search-list li:first-child {
+  border-top: none;
+}
+.global-search-result {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--ink);
+  text-align: left;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.global-search-result:hover {
+  background: var(--chrome2);
+}
+.global-search-title {
+  font-size: 12.5px;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.global-search-crumb {
+  font-size: 10.5px;
+  color: var(--mut);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
