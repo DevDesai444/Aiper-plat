@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type {
   Document,
+  DocumentSnapshot,
   Folder,
   Organization,
   Project,
@@ -9,6 +10,7 @@ import type {
 } from '@aiper/shared/types'
 import {
   DocumentSchema,
+  DocumentSnapshotSchema,
   FolderSchema,
   OrganizationSchema,
   ProjectFolderTreeSchema,
@@ -116,6 +118,41 @@ export function getSnapshotState(
   signal?: AbortSignal,
 ): Promise<Uint8Array> {
   return apiFetchBinary(`/api/v1/documents/${did}/snapshots/${sid}/state`, signal)
+}
+
+/**
+ * Body accepted by `POST /api/v1/documents/:did/save`. Matches the server's
+ * `SaveBodySchema` (SaveRequestSchema extended with a required base64
+ * `yjsState`). `reason` is free-text — it flows into `audit_log.reason` on
+ * the row the server writes alongside the snapshot; the server hardcodes
+ * the stored snapshot's `SnapshotReason` to `'checkpoint'` for every POST
+ * (auto-saves are the WS server's business), so this field is a "why did
+ * you save" audit note, NOT the enum.
+ */
+export interface SaveBody {
+  /** Yjs update stream from `Y.encodeStateAsUpdate`, base64-encoded. */
+  yjsState: string
+  reason?: string | null
+  label?: string | null
+}
+
+/**
+ * Save a snapshot. Server requires editor+ on the document and rejects
+ * bodies over 16 MiB base64. The returned `DocumentSnapshot` carries the
+ * server-authoritative `savedAt` — the editor renders that as the "Saved
+ * HH:MM" indicator so the clock is the server's, not the client's.
+ */
+export function postSave(
+  did: string,
+  body: SaveBody,
+  signal?: AbortSignal,
+): Promise<DocumentSnapshot> {
+  return apiFetch(`/api/v1/documents/${did}/save`, {
+    method: 'POST',
+    body,
+    schema: DocumentSnapshotSchema,
+    signal,
+  })
 }
 
 // ─── Hierarchy writes ───────────────────────────────────────────────────────

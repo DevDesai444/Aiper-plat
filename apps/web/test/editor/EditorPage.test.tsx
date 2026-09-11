@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import * as Y from 'yjs'
+import * as buffer from 'lib0/buffer'
 import type { Document } from '@aiper/shared/types'
 import { server } from '../msw/server'
 
@@ -156,5 +158,139 @@ describe('EditorPage', () => {
       'href',
       `/p/${PID}/f/${FID}`,
     )
+  })
+
+  // ─── PR-2: role-gated edit + Save ────────────────────────────────────────
+
+  it('hides Save and shows "Read-only" for viewer role', async () => {
+    server.use(
+      http.get(`/api/v1/documents/${DID}`, () =>
+        HttpResponse.json(makeDocument({ myRole: 'viewer', currentSnapshotId: null })),
+      ),
+    )
+    renderAt(`/p/${PID}/f/${FID}/d/${DID}`)
+
+    await screen.findByRole('heading', { name: /Thermal Vacuum Report/i })
+    expect(screen.queryByRole('button', { name: /save/i })).not.toBeInTheDocument()
+    expect(screen.getByText(/Read-only/i)).toBeInTheDocument()
+  })
+
+  it('exposes Save for editor+ and POSTs a base64 body that round-trips through Y.applyUpdate', async () => {
+    const hydrateBytes = makeYjsBytesWith('initial content from server')
+    let receivedBody: unknown = null
+
+    server.use(
+      http.get(`/api/v1/documents/${DID}`, () =>
+        HttpResponse.json(makeDocument({ myRole: 'editor', currentSnapshotId: SID })),
+      ),
+      http.get(
+        `/api/v1/documents/${DID}/snapshots/${SID}/state`,
+        () =>
+          new HttpResponse(hydrateBytes, {
+            headers: { 'Content-Type': 'application/octet-stream' },
+          }),
+      ),
+      http.post(`/api/v1/documents/${DID}/save`, async ({ request }) => {
+        receivedBody = await request.json()
+        return HttpResponse.json({
+          id: '77777777-7777-4777-8777-777777777777',
+          documentId: DID,
+          savedBy: USER_ID,
+          savedAt: '2026-01-02T14:23:00.000Z',
+          reason: 'checkpoint' as const,
+          label: null,
+        })
+      }),
+    )
+
+    renderAt(`/p/${PID}/d/${DID}`)
+    const saveBtn = await screen.findByRole('button', { name: /save/i })
+    // Wait for hydration to seed the ydoc — otherwise the base64 would be
+    // an empty-doc state vector and the round-trip assertion would still
+    // pass vacuously (empty in = empty out). Waiting for the text asserts
+    // Collaboration finished pulling the hydrated fragment into the DOM.
+    await waitFor(() => {
+      expect(screen.getByText(/initial content from server/)).toBeInTheDocument()
+    })
+
+    await userEvent.click(saveBtn)
+
+    await waitFor(() => {
+      expect(receivedBody).not.toBeNull()
+    })
+    const body = receivedBody as { yjsState: string; reason?: unknown; label?: unknown }
+    expect(typeof body.yjsState).toBe('string')
+    // The server's SaveBodySchema rejects reason/label if present-but-not-string;
+    // omitting them entirely (rather than sending null) matches the schema's
+    // .optional() shape most cleanly.
+    expect(body.reason).toBeUndefined()
+    expect(body.label).toBeUndefined()
+
+    // Decode the wire bytes, apply to a fresh Y.Doc, and assert the same
+    // fragment holds the same text. Any drift in the base64 encoder or the
+    // fragment field ('default') would break this equality.
+    const wireBytes = buffer.fromBase64(body.yjsState)
+    const decoded = new Y.Doc()
+    Y.applyUpdate(decoded, wireBytes)
+    expect(decoded.getXmlFragment('default').toString()).toContain(
+      'initial content from server',
+    )
+
+    // Saved indicator picks up the server's ISO timestamp — locale-agnostic
+    // regex tolerates 14:23 / 2:23 PM formats.
+    await waitFor(() => {
+      expect(screen.getByText(/Saved \d{1,2}:\d{2}/)).toBeInTheDocument()
+    })
+  })
+
+  it('surfaces the server error when POST /save returns 403', async () => {
+    server.use(
+      http.get(`/api/v1/documents/${DID}`, () =>
+        HttpResponse.json(makeDocument({ myRole: 'editor', currentSnapshotId: null })),
+      ),
+      http.post(`/api/v1/documents/${DID}/save`, () =>
+        HttpResponse.json(
+          { error: 'This action requires editor or above.', code: 'insufficient_role' },
+          { status: 403 },
+        ),
+      ),
+    )
+    renderAt(`/p/${PID}/f/${FID}/d/${DID}`)
+
+    const saveBtn = await screen.findByRole('button', { name: /save/i })
+    await userEvent.click(saveBtn)
+
+    // ApiFetchError.message = server error text; describeError prefixes status.
+    await waitFor(() => {
+      expect(screen.getByText(/Save failed — 403/)).toBeInTheDocument()
+    })
+  })
+
+  it('fires save on Ctrl/Cmd-S for editor+', async () => {
+    let saveHits = 0
+    server.use(
+      http.get(`/api/v1/documents/${DID}`, () =>
+        HttpResponse.json(makeDocument({ myRole: 'owner', currentSnapshotId: null })),
+      ),
+      http.post(`/api/v1/documents/${DID}/save`, () => {
+        saveHits += 1
+        return HttpResponse.json({
+          id: '77777777-7777-4777-8777-777777777777',
+          documentId: DID,
+          savedBy: USER_ID,
+          savedAt: '2026-01-02T14:23:00.000Z',
+          reason: 'checkpoint' as const,
+          label: null,
+        })
+      }),
+    )
+    renderAt(`/p/${PID}/f/${FID}/d/${DID}`)
+    await screen.findByRole('button', { name: /save/i })
+
+    // userEvent's keyboard API dispatches at window level, which is where
+    // the EditorPage's Cmd-S listener is registered.
+    await userEvent.keyboard('{Control>}s{/Control}')
+
+    await waitFor(() => expect(saveHits).toBe(1))
   })
 })
