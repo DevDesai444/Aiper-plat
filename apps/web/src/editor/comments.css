@@ -1,0 +1,332 @@
+/*
+ * Comments UI — highlight + FAB + right drawer, matching the visual
+ * language of HistoryPanel (bottom-left FAB → drawer). Everything lives
+ * as an overlay so EditorPage does not have to reserve layout space
+ * when the panel is closed.
+ */
+
+/* ── Titlebar action ────────────────────────────────────────────────── */
+/* A neutral "utility" button next to the Save action. Distinct from
+ * `.editor-save-btn` (the primary accented action) so the two can
+ * live in the same titlebar without competing. */
+.editor-titlebar-btn {
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-label);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 6px 12px;
+  border: 1px solid var(--dv);
+  cursor: pointer;
+  flex: none;
+}
+.editor-titlebar-btn:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  color: var(--color-accent-400);
+}
+.editor-titlebar-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* ── Highlight (on the editor page) ─────────────────────────────────── */
+/* Amber tint so the highlight reads on the light "paper" background
+ * without clashing with track-changes (blue, later PR) or find-hits.
+ * `box-shadow` gives a soft underline that survives selection. */
+.editor-page-content .comment-highlight {
+  background: color-mix(in srgb, #c8b06b 30%, transparent);
+  box-shadow: 0 1px 0 #c8b06b;
+  cursor: pointer;
+}
+.editor-page-content .comment-highlight--flash {
+  animation: commentFlash 1s ease-out;
+}
+@keyframes commentFlash {
+  0%   { background: color-mix(in srgb, #c8b06b 65%, transparent); }
+  100% { background: color-mix(in srgb, #c8b06b 30%, transparent); }
+}
+
+/* ── FAB ────────────────────────────────────────────────────────────── */
+/* Mirrors the geometry of `.history-fab` (see history.css) but on the
+ * OPPOSITE bottom corner so the two do not overlap when both are
+ * closed. */
+.comments-fab {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  z-index: 30;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--chrome);
+  border: 1px solid var(--dv);
+  color: var(--ink);
+  font-family: var(--font-label);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 8px 12px;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+.comments-fab:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent-400);
+}
+
+/* ── Drawer ─────────────────────────────────────────────────────────── */
+.comments-drawer {
+  position: fixed;
+  top: calc(var(--titlebar-h, 38px) + var(--tabbar-h, 33px) + var(--ribbon-h, 98px));
+  right: 20px;
+  bottom: calc(var(--statusbar-h, 26px) + 20px);
+  width: 340px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  background: var(--chrome);
+  border: 1px solid var(--dv);
+  box-shadow: -10px 10px 24px rgba(0, 0, 0, 0.35);
+  color: var(--ink);
+}
+.comments-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--dv);
+  background: var(--chrome2);
+}
+.comments-drawer-title {
+  font-family: var(--font-heading);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: 0;
+}
+.comments-drawer-close {
+  background: transparent;
+  border: none;
+  color: var(--mut);
+  cursor: pointer;
+  padding: 2px 4px;
+}
+.comments-drawer-close:hover {
+  color: var(--ink);
+}
+.comments-drawer-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.comments-muted {
+  color: var(--mut);
+  font-size: 12px;
+  font-style: italic;
+  margin: 0;
+}
+.comments-error {
+  color: var(--hi);
+  font-size: 12px;
+  border: 1px solid color-mix(in srgb, var(--hi) 45%, transparent);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.comments-error button {
+  align-self: flex-start;
+  background: transparent;
+  color: var(--hi);
+  border: 1px solid var(--hi);
+  font-size: 11px;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+
+/* ── Compose form ───────────────────────────────────────────────────── */
+.comments-compose {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  background: var(--chrome2);
+  border: 1px solid var(--dv);
+  border-left: 2px solid var(--color-accent);
+}
+.comments-compose-quote {
+  margin: 0;
+  padding-left: 8px;
+  border-left: 2px solid var(--mut2);
+  color: var(--mut);
+  font-size: 11.5px;
+  font-style: italic;
+}
+.comments-compose-input {
+  background: var(--deep);
+  border: 1px solid var(--dv);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  padding: 6px 8px;
+  resize: vertical;
+  outline: none;
+  min-height: 48px;
+}
+.comments-compose-input:focus {
+  border-color: var(--color-accent);
+}
+.comments-compose-input:disabled {
+  opacity: 0.7;
+}
+.comments-compose-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.comments-compose-actions button {
+  background: transparent;
+  border: 1px solid var(--dv);
+  color: var(--ink);
+  font-family: var(--font-label);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+.comments-compose-actions button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.comments-compose-submit {
+  background: var(--color-accent) !important;
+  border-color: var(--color-accent) !important;
+  color: var(--deep) !important;
+  font-weight: 600;
+}
+.comments-compose-submit:disabled {
+  background: color-mix(in srgb, var(--color-accent) 40%, var(--chrome)) !important;
+  border-color: color-mix(in srgb, var(--color-accent) 40%, var(--chrome)) !important;
+}
+.comments-compose-error {
+  margin: 0;
+  color: var(--hi);
+  font-size: 11px;
+}
+
+/* ── Thread list + card ─────────────────────────────────────────────── */
+.comments-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.comments-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--chrome2);
+  border: 1px solid var(--dv);
+}
+.comments-thread--resolved {
+  opacity: 0.65;
+  border-left: 2px solid var(--low);
+}
+.comments-thread-anchor {
+  background: transparent;
+  border: none;
+  color: var(--color-accent);
+  font-size: 11px;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+}
+.comments-thread-anchor:hover {
+  color: var(--color-accent-400);
+  text-decoration: underline;
+}
+.comments-thread-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.comments-comment {
+  border-top: 1px solid var(--dv2);
+  padding-top: 6px;
+}
+.comments-comment:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+.comments-comment-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.comments-comment-author {
+  font-weight: 600;
+  font-size: 11.5px;
+  color: var(--ink);
+}
+.comments-comment-time {
+  font-size: 10.5px;
+  color: var(--mut2);
+}
+.comments-comment-body {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--ink);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+.comments-thread-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+.comments-thread-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: 1px solid var(--dv);
+  color: var(--mut);
+  font-family: var(--font-label);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+.comments-thread-action:hover:not(:disabled) {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+.comments-thread-action:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.comments-thread-action--destructive:hover:not(:disabled) {
+  color: var(--hi);
+  border-color: var(--hi);
+}
+.comments-thread-error {
+  margin: 4px 0 0;
+  color: var(--hi);
+  font-size: 11px;
+}

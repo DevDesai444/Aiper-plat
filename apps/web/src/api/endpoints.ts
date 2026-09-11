@@ -2,6 +2,7 @@ import { z } from 'zod'
 import type {
   AiperSubject,
   AuditPage,
+  Comment,
   Document,
   DocumentSnapshot,
   Folder,
@@ -13,6 +14,7 @@ import type {
 } from '@aiper/shared/types'
 import {
   AuditPageSchema,
+  CommentSchema,
   DocumentSchema,
   DocumentSnapshotSchema,
   FolderSchema,
@@ -430,5 +432,95 @@ export function getAuditPage(
   return apiFetch(`/api/v1/audit${qs ? `?${qs}` : ''}`, {
     schema: AuditPageSchema,
     signal,
+  })
+}
+
+// ─── Comments ──────────────────────────────────────────────────────────────
+//
+// Comments are anchored to a Yjs mark (`markId`) that lives in the shared
+// Y.Doc, so the highlight sync is CRDT-native — but the bodies are here
+// over REST. Callers refetch after any mutation to pick up peers' writes;
+// the E7 comments panel also refetches on Y.Doc mark-set changes to catch
+// remote posts near-live.
+//
+// Server contract (apps/server/src/routes/hierarchy/{documents,writes/comments}.ts):
+//   GET  /api/v1/documents/:did/comments                    → { items: Comment[] }  (viewer+)
+//   POST /api/v1/documents/:did/comments                    → Comment (201)          (editor+)
+//   POST /api/v1/documents/:did/comments/:markId/resolve    → { comments: Comment[] } (editor+)
+//   DELETE /api/v1/documents/:did/comments/:markId          → 204                     (author-or-owner)
+//
+// Note the two different list envelopes (`items` vs `comments`) — that is
+// what the server actually sends, kept as-is per the interface freeze.
+
+/** Body shape accepted by `POST /api/v1/documents/:did/comments`. */
+export interface CommentCreate {
+  /** Client-generated uuid tying the thread to a Yjs mark. */
+  markId: string
+  /** Text spanned by the highlight, snapshot at post time (may be ''). */
+  quotedText: string
+  body: string
+}
+
+const CommentListResponse = z.object({ items: z.array(CommentSchema) })
+const CommentResolveResponse = z.object({ comments: z.array(CommentSchema) })
+
+/**
+ * Oldest-first list of every comment on a document. Server access is
+ * `viewer+`; a 404 collapses "no grant" and "does not exist" per the
+ * existence-leak guard.
+ */
+export async function listDocumentComments(
+  did: string,
+  signal?: AbortSignal,
+): Promise<Comment[]> {
+  const { items } = await apiFetch(`/api/v1/documents/${did}/comments`, {
+    schema: CommentListResponse,
+    signal,
+  })
+  return items
+}
+
+/**
+ * Create one comment anchored to the given Yjs `markId`. Editor+ on the
+ * document. The server denormalises the author's display name from the
+ * JWT at write time (see migration 007 header).
+ */
+export function createComment(did: string, body: CommentCreate): Promise<Comment> {
+  return apiFetch(`/api/v1/documents/${did}/comments`, {
+    method: 'POST',
+    body,
+    schema: CommentSchema,
+  })
+}
+
+/**
+ * Resolve every comment anchored to `markId` in one shot. Returns the
+ * current rows (with `resolvedAt` + `resolvedBy` set) so the caller can
+ * update its list without a second fetch — though the panel does refetch
+ * anyway to pick up any interleaving peer writes.
+ */
+export async function resolveCommentThread(
+  did: string,
+  markId: string,
+): Promise<Comment[]> {
+  const { comments } = await apiFetch(
+    `/api/v1/documents/${did}/comments/${markId}/resolve`,
+    {
+      method: 'POST',
+      schema: CommentResolveResponse,
+    },
+  )
+  return comments
+}
+
+/**
+ * Delete every comment anchored to `markId`. Author-or-owner: authors
+ * can delete their own thread, doc owners can delete anyone's. An
+ * editor who did not author the thread gets 403 (server enforces
+ * atomically — no partial delete leaks).
+ */
+export function deleteCommentThread(did: string, markId: string): Promise<void> {
+  return apiFetch(`/api/v1/documents/${did}/comments/${markId}`, {
+    method: 'DELETE',
   })
 }
