@@ -75,3 +75,7 @@ export * from './blobs.js'
 // SnapshotReason) — E3 owns; kept in their own file so this barrel does
 // not grow linearly.
 export * from './snapshots.js'
+
+// Search types (SearchResult, SearchResponse) — pairs 1:1 with
+// ../schemas/search.ts.
+export * from './search.js'
