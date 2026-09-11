@@ -254,12 +254,27 @@ export class RoomRegistry {
       }
     })
 
+    this.startAutoTimer(documentId, room)
+    return room
+  }
+
+  /**
+   * (Re)start the auto-snapshot interval for a room. Idempotent: if a
+   * timer is already running, leave it. Called from joinOrCreate on
+   * first join and from attachPeer on any subsequent join — the second
+   * case matters because a peer arriving during a mid-flush teardown
+   * (handlePeerLeave cleared the timer but is still awaiting persist)
+   * finds a room with `autoTimer === null` that must be resurrected,
+   * otherwise the room runs un-checkpointed until full teardown.
+   */
+  private startAutoTimer(documentId: string, room: Room): void {
+    if (room.autoTimer) return
+    if (this.closed) return
     room.autoTimer = setInterval(() => {
       void this.persist(documentId, room).catch((err) => {
         this.opts.logger.error({ err, docId: documentId }, 'ws: auto-tick persist failed')
       })
     }, this.opts.autoSnapshotIntervalMs)
-    return room
   }
 
   private async hydrate(documentId: string, room: Room): Promise<void> {
@@ -282,6 +297,12 @@ export class RoomRegistry {
 
   private attachPeer(documentId: string, room: Room, peer: Peer): void {
     room.peers.add(peer)
+
+    // If this peer arrived while a prior last-peer disconnect had
+    // cleared the auto-timer but was still awaiting its persist, the
+    // room survives (peers.size will be > 0 by the time the flush
+    // checks) but the timer would stay dead. Resurrect it now.
+    this.startAutoTimer(documentId, room)
 
     // Send our state vector so the peer can compute what it lacks.
     // Peer will reply with a SyncStep2 (update) and its own SyncStep1;
@@ -516,5 +537,13 @@ export class RoomRegistry {
    *  peer's cursor was removed. */
   public awarenessClientCount(documentId: string): number {
     return this.rooms.get(documentId)?.awareness.getStates().size ?? 0
+  }
+
+  /** Test-only accessor: is the auto-snapshot timer running for this
+   *  room? Used by the rejoin-mid-flush test to prove the timer is
+   *  restarted (not silently left dead) when a peer joins a room
+   *  whose prior last-peer flush had cleared it. */
+  public hasAutoTimer(documentId: string): boolean {
+    return this.rooms.get(documentId)?.autoTimer != null
   }
 }

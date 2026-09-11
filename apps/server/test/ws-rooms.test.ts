@@ -379,6 +379,57 @@ test('room broadcaster: SyncStep1 (a read) does NOT dirty the room and does NOT 
   assert.equal(before.rows[0]!.n, '0', 'no snapshot from a read-only open')
 })
 
+test('room broadcaster: a peer rejoining mid-flush keeps the auto-timer alive', async () => {
+  // Race the sr-eng reviewer flagged: handlePeerLeave clears autoTimer
+  // and nulls it BEFORE awaiting persist. If a peer joins during that
+  // await, joinOrCreate returns the still-in-map room and the room
+  // survives peer-count-wise, but the timer stayed dead — no
+  // auto-checkpoints until full teardown.
+  //
+  // Fix: attachPeer calls startAutoTimer, which restarts a null timer
+  // for a live room. This test forces the race: sim1 dirties then
+  // disconnects, which starts handlePeerLeave's async persist (real
+  // DB round-trip via saveSnapshot); sim2's connect completes during
+  // that await; the room must still have a live autoTimer.
+
+  const alex = await seedUser('Alex')
+  const docId = await seedDoc(alex.id)
+
+  const sim1 = makeSim(alex.id, alex.displayName, 'editor')
+  await registry.connect(docId, sim1.peer)
+  sim1.bind()
+
+  // Dirty the room so handlePeerLeave's flush has real work to do
+  // (state vector will differ → saveSnapshot runs → real DB round-trip
+  // during which the rejoin lands).
+  sim1.doc.getText('t').insert(0, 'dirty before leave')
+  drainInto(sim1)
+  assert.equal(registry.isDirty(docId), true, 'sim1 edit dirtied the room')
+
+  // Fire the disconnect. Synchronous portion of handlePeerLeave clears
+  // the timer + sets autoTimer = null, then suspends on await persist.
+  sim1.socket.simulateDisconnect()
+
+  // Rejoin sim2 while handlePeerLeave's persist is still in flight.
+  // joinOrCreate finds the room still in the map; attachPeer must
+  // restart the timer.
+  const sim2 = makeSim(alex.id, alex.displayName, 'editor')
+  await registry.connect(docId, sim2.peer)
+
+  assert.equal(registry.roomCount(), 1, 'room survived the mid-flush rejoin')
+  assert.equal(registry.hasAutoTimer(docId), true, 'timer restarted on rejoin')
+
+  // Let handlePeerLeave's persist + teardown check drain. peers.size
+  // is 1 (sim2) by then, so the destroy branch is skipped.
+  await new Promise((r) => setTimeout(r, 100))
+  assert.equal(registry.roomCount(), 1, 'room stayed after handlePeerLeave settled')
+  assert.equal(
+    registry.hasAutoTimer(docId),
+    true,
+    'timer still alive after handlePeerLeave settled — the bug would leave it null',
+  )
+})
+
 test('room broadcaster: awareness state is gone after the peer disconnects', async () => {
   // Ghost cursors bug: on disconnect the old implementation filtered
   // by a clientID that never existed on Peer, so removeAwarenessStates
