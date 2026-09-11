@@ -51,3 +51,7 @@ export * from './snapshots.js'
 // Search schemas (SearchResultSchema, SearchResponseSchema) — pairs 1:1
 // with ../types/search.ts.
 export * from './search.js'
+
+// Product-tree schemas — E3 owns; pairs 1:1 with
+// ../types/product-tree.ts.
+export * from './product-tree.js'
