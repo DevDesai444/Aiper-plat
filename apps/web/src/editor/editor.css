@@ -59,6 +59,33 @@
   letter-spacing: 0.06em;
   color: var(--mut2);
 }
+.editor-titlebar-status--dirty {
+  color: var(--med);
+}
+.editor-titlebar-status--error {
+  color: var(--hi);
+}
+
+.editor-save-btn {
+  background: var(--color-accent);
+  color: var(--deep);
+  font-family: var(--font-label);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 6px 14px;
+  border: none;
+  cursor: pointer;
+  flex: none;
+}
+.editor-save-btn:hover:not(:disabled) {
+  background: var(--color-accent-400);
+}
+.editor-save-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
 
 .editor-scroll {
   flex: 1 1 auto;
