@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import * as Y from 'yjs'
 import * as buffer from 'lib0/buffer'
-import type { Document } from '@aiper/shared/types'
+import type { Document, SessionUser } from '@aiper/shared/types'
 import { server } from '../msw/server'
 
 const { mockSupabase } = vi.hoisted(() => ({
@@ -19,14 +19,66 @@ const { mockSupabase } = vi.hoisted(() => ({
 }))
 vi.mock('../../src/auth/supabase', () => ({ supabase: mockSupabase }))
 
-// Dynamic import after mock so the editor module resolves the mocked supabase.
+/**
+ * Mock the collab provider so EditorPage tests do not try to spawn a
+ * real `WebSocket` under jsdom. The mock records constructor args and
+ * lets us assert that:
+ *   1. EditorPage constructs it exactly when it should (session user
+ *      present AND load resolved), and never otherwise.
+ *   2. `destroy()` runs on unmount.
+ *   3. `editable` gates the flag it hands the provider.
+ * The wire-level behaviour is covered by test/editor/collabProvider.
+ */
+const collabMock = vi.hoisted(() => {
+  interface MockInstance {
+    opts: { documentId: string; editable: boolean; awareness: unknown }
+    destroy: ReturnType<typeof vi.fn>
+  }
+  const instances: MockInstance[] = []
+  class MockProvider {
+    opts: MockInstance['opts']
+    awareness: unknown
+    destroy: MockInstance['destroy']
+    constructor(opts: {
+      documentId: string
+      editable: boolean
+      awareness: unknown
+      onStatus?: (s: string) => void
+    }) {
+      this.opts = { documentId: opts.documentId, editable: opts.editable, awareness: opts.awareness }
+      this.awareness = opts.awareness
+      this.destroy = vi.fn()
+      instances.push(this as unknown as MockInstance)
+      queueMicrotask(() => opts.onStatus?.('connected'))
+    }
+    getStatus(): string { return 'connected' }
+  }
+  return { instances, MockProvider }
+})
+vi.mock('../../src/editor/collabProvider', () => ({
+  AiperCollabProvider: collabMock.MockProvider,
+  collabCursorColorForUser: () => '#749dc4',
+}))
+
+// Dynamic import after mocks so the editor module resolves them.
 const { EditorPage } = await import('../../src/editor/EditorPage')
+const { useSessionStore } = await import('../../src/auth/sessionStore')
 
 const DID = '33333333-3333-4333-8333-333333333333'
 const PID = '44444444-4444-4444-8444-444444444444'
 const FID = '55555555-5555-4555-8555-555555555555'
 const SID = '66666666-6666-4666-8666-666666666666'
 const USER_ID = '11111111-1111-4111-8111-111111111111'
+
+function fakeSessionUser(): SessionUser {
+  return {
+    id: USER_ID,
+    email: 'alice@example.com',
+    displayName: 'Alice',
+    avatarUrl: null,
+    orgMemberships: [],
+  }
+}
 
 function makeDocument(overrides: Partial<Document> = {}): Document {
   return {
@@ -59,8 +111,8 @@ function makeYjsBytesWith(text: string): Uint8Array {
   return Y.encodeStateAsUpdate(doc)
 }
 
-function renderAt(path: string): void {
-  render(
+function renderAt(path: string): { unmount: () => void } {
+  const utils = render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="p/:pid/f/:fid/d/:did" element={<EditorPage />} />
@@ -68,12 +120,23 @@ function renderAt(path: string): void {
       </Routes>
     </MemoryRouter>,
   )
+  return { unmount: utils.unmount }
 }
 
 beforeEach(() => {
   mockSupabase.auth.getSession.mockReset()
   mockSupabase.auth.getSession.mockResolvedValue({
     data: { session: { access_token: 'test-token' } },
+  })
+  collabMock.instances.length = 0
+  // Session store starts empty per test unless explicitly seeded — the
+  // provider effect early-returns when there's no cursor identity, so
+  // load/save tests keep behaving exactly as they did before PR-3.
+  useSessionStore.setState({
+    status: 'signed-out',
+    user: null,
+    error: null,
+    busy: false,
   })
 })
 
@@ -292,5 +355,62 @@ describe('EditorPage', () => {
     await userEvent.keyboard('{Control>}s{/Control}')
 
     await waitFor(() => expect(saveHits).toBe(1))
+  })
+
+  // ─── PR-3: live-sync provider lifecycle ──────────────────────────────────
+
+  it('does not spawn the collab provider when there is no session user', async () => {
+    server.use(
+      http.get(`/api/v1/documents/${DID}`, () =>
+        HttpResponse.json(makeDocument({ myRole: 'editor', currentSnapshotId: null })),
+      ),
+    )
+    renderAt(`/p/${PID}/f/${FID}/d/${DID}`)
+    await screen.findByRole('heading', { name: /Thermal Vacuum/i })
+    // Provider stays off — no cursor identity, no connection dot.
+    expect(collabMock.instances).toHaveLength(0)
+    expect(screen.queryByRole('status', { name: /Live sync/i })).not.toBeInTheDocument()
+  })
+
+  it('spawns the collab provider after load and destroys it on unmount', async () => {
+    useSessionStore.setState({ status: 'signed-in', user: fakeSessionUser(), error: null, busy: false })
+    server.use(
+      http.get(`/api/v1/documents/${DID}`, () =>
+        HttpResponse.json(makeDocument({ myRole: 'editor', currentSnapshotId: null })),
+      ),
+    )
+    const { unmount } = renderAt(`/p/${PID}/f/${FID}/d/${DID}`)
+    await screen.findByRole('heading', { name: /Thermal Vacuum/i })
+
+    await waitFor(() => expect(collabMock.instances).toHaveLength(1))
+    const instance = collabMock.instances[0]!
+    expect(instance.opts.documentId).toBe(DID)
+    expect(instance.opts.editable).toBe(true) // editor role
+    // Live-sync dot renders once the provider reports connected.
+    await waitFor(() => {
+      expect(
+        screen.getByRole('status', { name: /Live sync connected/i }),
+      ).toBeInTheDocument()
+    })
+
+    unmount()
+    expect(instance.destroy).toHaveBeenCalled()
+  })
+
+  it('connects viewers too but with editable=false so they cannot broadcast writes', async () => {
+    useSessionStore.setState({ status: 'signed-in', user: fakeSessionUser(), error: null, busy: false })
+    server.use(
+      http.get(`/api/v1/documents/${DID}`, () =>
+        HttpResponse.json(makeDocument({ myRole: 'viewer', currentSnapshotId: null })),
+      ),
+    )
+    renderAt(`/p/${PID}/f/${FID}/d/${DID}`)
+    await screen.findByRole('heading', { name: /Thermal Vacuum/i })
+
+    await waitFor(() => expect(collabMock.instances).toHaveLength(1))
+    expect(collabMock.instances[0]!.opts.editable).toBe(false)
+    // Viewer titlebar still says Read-only for save; live-sync dot is
+    // separate and reflects the WS connection.
+    expect(screen.getByText(/Read-only/i)).toBeInTheDocument()
   })
 })

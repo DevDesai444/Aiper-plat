@@ -15,6 +15,15 @@ export default defineConfig({
         target: API_ORIGIN,
         changeOrigin: true,
       },
+      // Yjs collab. `ws: true` upgrades the HTTP CONNECT into a real
+      // WebSocket to Fastify. Same origin trick the SPA relies on for
+      // /api — the browser cannot set headers on a WebSocket, so auth
+      // rides `?token=<jwt>` (see apps/web/src/editor/collabProvider.ts).
+      '/ws': {
+        target: API_ORIGIN,
+        changeOrigin: true,
+        ws: true,
+      },
     },
   },
 })
