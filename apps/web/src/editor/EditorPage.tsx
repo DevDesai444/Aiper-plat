@@ -7,6 +7,7 @@ import type { AiperRole, Document } from '@aiper/shared/types'
 import { ApiFetchError } from '../api/client'
 import { getDocument, getSnapshotState, postSave } from '../api/endpoints'
 import { buildEditorExtensions } from './schema'
+import { HistoryPanel } from './HistoryPanel'
 import './editor.css'
 
 /**
@@ -264,6 +265,7 @@ function EditorPageInner({ did, pid, fid }: { did: string; pid: string; fid: str
           <EditorContent editor={editor} />
         </div>
       </div>
+      <HistoryPanel documentId={did} />
     </div>
   )
 }

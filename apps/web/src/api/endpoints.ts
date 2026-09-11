@@ -16,6 +16,7 @@ import {
   ProjectFolderTreeSchema,
   ProjectSchema,
   SessionUserSchema,
+  SnapshotListSchema,
 } from '@aiper/shared/schemas'
 import { apiFetch, apiFetchBinary } from './client'
 
@@ -103,6 +104,23 @@ export async function listFolderDocuments(
 
 export function getDocument(did: string, signal?: AbortSignal): Promise<Document> {
   return apiFetch(`/api/v1/documents/${did}`, { schema: DocumentSchema, signal })
+}
+
+/**
+ * Save-timeline for one document — newest snapshot first. Metadata only:
+ * the Yjs bytes for any given snapshot come from `getSnapshotState`. Access
+ * is `viewer+` on the server (both non-existence and no-grant collapse to
+ * a single 404, so a 404 here means "you cannot see this document").
+ */
+export async function getDocumentHistory(
+  did: string,
+  signal?: AbortSignal,
+): Promise<DocumentSnapshot[]> {
+  const { snapshots } = await apiFetch(`/api/v1/documents/${did}/history`, {
+    schema: SnapshotListSchema,
+    signal,
+  })
+  return snapshots
 }
 
 /**
