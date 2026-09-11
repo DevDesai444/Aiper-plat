@@ -1,4 +1,5 @@
 import { useSessionStore } from '../auth/sessionStore'
+import { GlobalSearch } from './GlobalSearch'
 
 /**
  * PR-1b shell frame — brand on the left, user chip + sign-out on the right,
@@ -24,7 +25,9 @@ export function TitleBar() {
       <div className="titlebar-left">
         <span className="titlebar-brand">AIPER</span>
       </div>
-      <div className="titlebar-center" />
+      <div className="titlebar-center">
+        <GlobalSearch />
+      </div>
       <div className="titlebar-right">
         {user && (
           <button

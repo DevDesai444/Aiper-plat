@@ -6,6 +6,7 @@ import type {
   Organization,
   Project,
   ProjectFolderTree,
+  SearchResult,
   SessionUser,
 } from '@aiper/shared/types'
 import {
@@ -15,6 +16,7 @@ import {
   OrganizationSchema,
   ProjectFolderTreeSchema,
   ProjectSchema,
+  SearchResponseSchema,
   SessionUserSchema,
   SnapshotListSchema,
 } from '@aiper/shared/schemas'
@@ -329,4 +331,54 @@ export function archiveFolder(
  */
 export function deleteFolder(fid: string): Promise<void> {
   return apiFetch(`/api/v1/folders/${fid}`, { method: 'DELETE' })
+}
+
+// ─── Search ───────────────────────────────────────────────────────────────
+//
+// Backed by E1's search route (routes/search.ts): ILIKE substring on the
+// document title, filtered through aiper_effective_access so a caller sees
+// only documents they can actually open. Results sort by lower(title) ASC,
+// capped at `limit` (default 50, server-capped at 200).
+
+/** Build the query string once — same shape for both search variants. */
+function searchParams(q: string, limit?: number): string {
+  const params = new URLSearchParams({ q })
+  if (limit != null) params.set('limit', String(limit))
+  return params.toString()
+}
+
+/**
+ * Search every document the caller can reach across every project.
+ * Returns the parsed `results` array (the outer `{ results: [...] }`
+ * envelope is destructured here so callers get a plain array — matches
+ * the pattern used by `listOrgs`, `listMembers`, etc.).
+ */
+export async function searchDocuments(
+  q: string,
+  limit?: number,
+  signal?: AbortSignal,
+): Promise<SearchResult[]> {
+  const { results } = await apiFetch(`/api/v1/search?${searchParams(q, limit)}`, {
+    schema: SearchResponseSchema,
+    signal,
+  })
+  return results
+}
+
+/**
+ * Same as `searchDocuments`, but narrowed to a single project — used
+ * automatically by the global search input when the user is already on
+ * a `/p/:pid` route.
+ */
+export async function searchInProject(
+  pid: string,
+  q: string,
+  limit?: number,
+  signal?: AbortSignal,
+): Promise<SearchResult[]> {
+  const { results } = await apiFetch(
+    `/api/v1/projects/${pid}/search?${searchParams(q, limit)}`,
+    { schema: SearchResponseSchema, signal },
+  )
+  return results
 }
