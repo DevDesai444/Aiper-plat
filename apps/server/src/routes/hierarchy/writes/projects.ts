@@ -224,7 +224,7 @@ export function chooseAction(
     if (k === 'name' || k === 'title') return `${subject}.renamed`
     if (k === 'description') return `${subject}.description_changed`
     if (k === 'archivedAt') return body.archivedAt == null ? `${subject}.unarchived` : `${subject}.archived`
-    if (k === 'parentFolderId') return `${subject}.moved`
+    if (k === 'parentFolderId' || k === 'folderId' || k === 'projectId') return `${subject}.moved`
   }
   return `${subject}.updated`
 }
