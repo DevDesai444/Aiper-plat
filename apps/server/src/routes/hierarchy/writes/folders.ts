@@ -130,6 +130,13 @@ export function registerFolderWriteRoutes(app: FastifyInstance, pool: pg.Pool): 
   )
 
   // --------------------------------------------------------------- PATCH /folders/:fid
+  //
+  // Role threshold splits by operation:
+  //   - rename / archive → editor+
+  //   - move (parentFolderId in body) → owner
+  // Moves change the location and blast radius (a subtree can rotate into
+  // a different corner of the tree); the destructive-adjacent nature makes
+  // them an owner-only act, matching the peer convention for delete/move.
   typed.patch(
     '/api/v1/folders/:fid',
     {
@@ -152,15 +159,28 @@ export function registerFolderWriteRoutes(app: FastifyInstance, pool: pg.Pool): 
       const body = req.body
       const userId = req.user.id
 
-      const role = await resolveOrDenyForWrite(pool, reply, userId, 'folder', fid, 'editor')
+      const isMove = 'parentFolderId' in body
+      const minRole = isMove ? 'owner' : 'editor'
+      const role = await resolveOrDenyForWrite(pool, reply, userId, 'folder', fid, minRole)
       if (role === null) return
 
       // If the request moves this folder under a new parent, the caller
-      // also needs editor+ on the destination — otherwise they could drag
-      // a folder they can edit into a subtree they merely view, ending up
-      // writing to a place they otherwise couldn't.
-      if ('parentFolderId' in body && body.parentFolderId != null) {
+      // also needs editor+ on the destination and the destination must
+      // stay in the same project. `parentFolderId: null` is legal (move
+      // to project root) and skips both checks.
+      if (isMove && body.parentFolderId != null) {
         const newParent = body.parentFolderId
+
+        // Self-parent is caught by the folders_no_self_parent CHECK from
+        // migration 006, but the API returns a nicer error than a raw
+        // 23514 by short-circuiting here.
+        if (newParent === fid) {
+          return reply.code(400).send({
+            error: 'A folder cannot be its own parent',
+            code: 'self_parent',
+          })
+        }
+
         const parentRole = await resolveOrDenyForWrite(
           pool,
           reply,
@@ -170,8 +190,8 @@ export function registerFolderWriteRoutes(app: FastifyInstance, pool: pg.Pool): 
           'editor',
         )
         if (parentRole === null) return
-        // Same-project guard as on create — a folder can only be moved
-        // within its own project.
+
+        // Same-project guard.
         const projCheck = await pool.query<{ project_id: string }>(
           `SELECT project_id FROM folders WHERE id = $1`,
           [newParent],
@@ -188,6 +208,30 @@ export function registerFolderWriteRoutes(app: FastifyInstance, pool: pg.Pool): 
           return reply.code(400).send({
             error: 'Cannot move folder across projects',
             code: 'cross_project_move',
+          })
+        }
+
+        // Cycle guard. Walk parents up from the proposed destination; if
+        // we hit fid, moving would make fid its own descendant. The
+        // recursive CTE resolves in one round-trip and is bounded by
+        // tree depth. `parent_folder_id IS NOT NULL` in the recursive
+        // step is what stops the walk at the project root.
+        const cycle = await pool.query<{ is_cycle: boolean }>(
+          `WITH RECURSIVE ancestors AS (
+             SELECT id, parent_folder_id FROM folders WHERE id = $1
+             UNION ALL
+             SELECT f.id, f.parent_folder_id
+               FROM folders f
+               JOIN ancestors a ON a.parent_folder_id = f.id
+              WHERE a.parent_folder_id IS NOT NULL
+           )
+           SELECT EXISTS (SELECT 1 FROM ancestors WHERE id = $2) AS is_cycle`,
+          [newParent, fid],
+        )
+        if (cycle.rows[0]?.is_cycle) {
+          return reply.code(400).send({
+            error: 'A folder cannot become a descendant of itself',
+            code: 'folder_cycle',
           })
         }
       }
@@ -252,6 +296,94 @@ export function registerFolderWriteRoutes(app: FastifyInstance, pool: pg.Pool): 
 
         await client.query('COMMIT')
         return { ...folder, myRole: role }
+      } catch (err) {
+        await client.query('ROLLBACK').catch(() => {})
+        throw err
+      } finally {
+        client.release()
+      }
+    },
+  )
+
+  // --------------------------------------------------------------- DELETE /folders/:fid
+  //
+  // Owner-only. FK cascades on folders.parent_folder_id and every child
+  // table (documents.folder_id, comments.document_id, snapshots.document_id)
+  // remove the subtree — a delete on a folder near the root of a project
+  // can remove a lot of rows. The audit row lands before the DELETE so
+  // the deleted subtree is at least named for the record.
+  typed.delete(
+    '/api/v1/folders/:fid',
+    {
+      schema: {
+        summary: 'Delete a folder (cascades to child folders, documents, snapshots, comments)',
+        params: FolderIdParams,
+        response: {
+          204: z.null(),
+          401: ApiErrorSchema,
+          403: ApiErrorSchema,
+          404: ApiErrorSchema,
+        },
+      },
+    },
+    async (req, reply) => {
+      if (!req.user) return unauthorized(reply)
+      const { fid } = req.params
+      const userId = req.user.id
+
+      const role = await resolveOrDenyForWrite(pool, reply, userId, 'folder', fid, 'owner')
+      if (role === null) return
+
+      const client = await pool.connect()
+      try {
+        await client.query('BEGIN')
+
+        const before = await client.query<{
+          name: string
+          projectId: string
+          parentFolderId: string | null
+        }>(
+          `SELECT name,
+                  project_id       AS "projectId",
+                  parent_folder_id AS "parentFolderId"
+             FROM folders WHERE id = $1 FOR UPDATE`,
+          [fid],
+        )
+        const prev = before.rows[0]!
+
+        await writeAudit(client, {
+          userId,
+          printedName: printedName(req.user),
+          action: 'folder.deleted',
+          subjectType: 'folder',
+          subjectId: fid,
+          oldValue: prev,
+        })
+
+        // Migration 003 (E1's hierarchy stubs) didn't declare ON DELETE
+        // CASCADE on folders.parent_folder_id or documents.folder_id, so
+        // a naive DELETE at the root of a subtree errors with an FK
+        // violation. Hand-cascade in the same txn: gather every
+        // descendant folder id via a recursive CTE, delete all
+        // documents anchored to any of them (comments cascade off
+        // documents via migration 007), then delete the folders bulk in
+        // one statement (Postgres checks FKs at statement end, so a
+        // single DELETE for the whole set does not trip the
+        // parent-folder FK on itself).
+        const subtree = await client.query<{ id: string }>(
+          `WITH RECURSIVE tree AS (
+             SELECT id FROM folders WHERE id = $1
+             UNION ALL
+             SELECT f.id FROM folders f JOIN tree t ON f.parent_folder_id = t.id
+           )
+           SELECT id FROM tree`,
+          [fid],
+        )
+        const folderIds = subtree.rows.map((r) => r.id)
+        await client.query(`DELETE FROM documents WHERE folder_id = ANY($1::uuid[])`, [folderIds])
+        await client.query(`DELETE FROM folders   WHERE id        = ANY($1::uuid[])`, [folderIds])
+        await client.query('COMMIT')
+        return reply.code(204).send(null)
       } catch (err) {
         await client.query('ROLLBACK').catch(() => {})
         throw err
