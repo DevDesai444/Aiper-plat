@@ -1,0 +1,158 @@
+/*
+ * Save-history panel styles. Bottom-right FAB toggles a full-height right
+ * drawer overlaid on the editor. Fixed positioning so the panel does not
+ * need any layout support from EditorPage — merging alongside E7's edit+
+ * save changes stays a one-line diff.
+ *
+ * Reads from apps/web/src/design/tokens.css — every color / dimension.
+ */
+
+/* ---------- Toggle FAB (visible when the drawer is closed) ---------- */
+.history-fab {
+  position: fixed;
+  bottom: calc(var(--statusbar-h) + 16px);
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--chrome);
+  border: 1px solid var(--dv);
+  color: var(--ink);
+  font-family: var(--font-label);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  z-index: 40;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+.history-fab:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+/* ---------- Drawer ---------- */
+.history-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 340px;
+  z-index: 50;
+  background: var(--chrome);
+  border-left: 1px solid var(--dv);
+  display: flex;
+  flex-direction: column;
+  box-shadow: -12px 0 24px rgba(0, 0, 0, 0.4);
+}
+.history-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--dv2);
+}
+.history-drawer-title {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink);
+  margin: 0;
+}
+.history-drawer-close {
+  background: none;
+  border: none;
+  color: var(--mut);
+  padding: 4px;
+  cursor: pointer;
+}
+.history-drawer-close:hover {
+  color: var(--ink);
+}
+.history-drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.history-muted {
+  color: var(--mut2);
+  font-size: 12px;
+  padding: 12px 16px;
+  font-style: italic;
+}
+.history-error {
+  padding: 12px 16px;
+  color: var(--hi);
+  font-size: 12px;
+}
+.history-error button {
+  background: none;
+  border: 1px solid var(--dv);
+  color: var(--ink);
+  padding: 5px 10px;
+  margin-top: 6px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.history-error button:hover {
+  border-color: var(--color-accent);
+}
+
+.history-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.history-row {
+  padding: 10px 16px;
+  border-top: 1px solid var(--dv2);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.history-row:first-child {
+  border-top: none;
+}
+.history-row-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.history-reason {
+  font-family: var(--font-label);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 2px 6px;
+  border: 1px solid var(--dv);
+  color: var(--mut2);
+}
+.history-reason--auto {
+  color: var(--mut2);
+}
+.history-reason--checkpoint {
+  color: var(--color-accent);
+  border-color: color-mix(in srgb, var(--color-accent) 45%, transparent);
+}
+.history-reason--release {
+  color: var(--hi);
+  border-color: color-mix(in srgb, var(--hi) 45%, transparent);
+}
+.history-label {
+  font-size: 12.5px;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.history-row-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--mut);
+  font-size: 11px;
+}
