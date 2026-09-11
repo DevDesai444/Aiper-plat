@@ -60,6 +60,24 @@ vi.mock('../../src/editor/collabProvider', () => ({
   collabCursorColorForUser: () => '#749dc4',
 }))
 
+/**
+ * Mock the docx importer so EditorPage's Import DOCX flow can be
+ * exercised without pulling mammoth (a ~1 MB dep) into the vitest
+ * environment. The wire between EditorPage and mammoth is covered
+ * end-to-end in `docxImport.test.ts`; this test file cares about
+ * the confirm-before-replace flow, the role gate, and that the
+ * imported HTML lands in the editor.
+ */
+const importMock = vi.hoisted(() => ({
+  convertDocxToHtml: vi.fn<
+    (source: File | Blob | ArrayBuffer) => Promise<{
+      html: string
+      warnings: string[]
+    }>
+  >(),
+}))
+vi.mock('../../src/editor/docxImport', () => importMock)
+
 // Dynamic import after mocks so the editor module resolves them.
 const { EditorPage } = await import('../../src/editor/EditorPage')
 const { useSessionStore } = await import('../../src/auth/sessionStore')
@@ -129,6 +147,8 @@ beforeEach(() => {
     data: { session: { access_token: 'test-token' } },
   })
   collabMock.instances.length = 0
+  importMock.convertDocxToHtml.mockReset()
+  importMock.convertDocxToHtml.mockResolvedValue({ html: '', warnings: [] })
   // Session store starts empty per test unless explicitly seeded — the
   // provider effect early-returns when there's no cursor identity, so
   // load/save tests keep behaving exactly as they did before PR-3.
@@ -412,5 +432,135 @@ describe('EditorPage', () => {
     // Viewer titlebar still says Read-only for save; live-sync dot is
     // separate and reflects the WS connection.
     expect(screen.getByText(/Read-only/i)).toBeInTheDocument()
+  })
+
+  // ─── PR-6: DOCX import ───────────────────────────────────────────────────
+
+  it('viewer role hides the Import DOCX button', async () => {
+    server.use(
+      http.get(`/api/v1/documents/${DID}`, () =>
+        HttpResponse.json(makeDocument({ myRole: 'viewer', currentSnapshotId: null })),
+      ),
+    )
+    renderAt(`/p/${PID}/f/${FID}/d/${DID}`)
+    await screen.findByRole('heading', { name: /Thermal Vacuum/i })
+    expect(
+      screen.queryByRole('button', { name: /Import DOCX/i }),
+    ).not.toBeInTheDocument()
+    // Sanity: Export is still available to viewers (it just reads).
+    expect(screen.getByRole('button', { name: /Export DOCX/i })).toBeInTheDocument()
+  })
+
+  it('editor with an empty doc imports without a confirm dialog', async () => {
+    importMock.convertDocxToHtml.mockResolvedValue({
+      html: '<h1>Imported heading</h1><p>Imported body</p>',
+      warnings: [],
+    })
+    server.use(
+      http.get(`/api/v1/documents/${DID}`, () =>
+        HttpResponse.json(makeDocument({ myRole: 'editor', currentSnapshotId: null })),
+      ),
+    )
+    renderAt(`/p/${PID}/f/${FID}/d/${DID}`)
+    await screen.findByRole('button', { name: /Import DOCX/i })
+
+    const fileInput = screen.getByTestId('editor-import-input') as HTMLInputElement
+    const file = new File(['fake bytes'], 'inbound.docx', {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    })
+    await userEvent.upload(fileInput, file)
+
+    // Import runs immediately — no confirm on an empty doc.
+    await waitFor(() =>
+      expect(importMock.convertDocxToHtml).toHaveBeenCalledTimes(1),
+    )
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    // The imported HTML lands in the editor via setContent.
+    await waitFor(() => {
+      expect(screen.getByText(/Imported heading/)).toBeInTheDocument()
+    })
+    expect(screen.getByText(/Imported body/)).toBeInTheDocument()
+  })
+
+  it('editor with a non-empty doc opens ConfirmDialog first; cancel skips import', async () => {
+    const hydrateBytes = makeYjsBytesWith('existing content — do not clobber')
+    server.use(
+      http.get(`/api/v1/documents/${DID}`, () =>
+        HttpResponse.json(makeDocument({ myRole: 'editor', currentSnapshotId: SID })),
+      ),
+      http.get(
+        `/api/v1/documents/${DID}/snapshots/${SID}/state`,
+        () =>
+          new HttpResponse(hydrateBytes, {
+            headers: { 'Content-Type': 'application/octet-stream' },
+          }),
+      ),
+    )
+    renderAt(`/p/${PID}/f/${FID}/d/${DID}`)
+    await screen.findByText(/existing content — do not clobber/)
+
+    const fileInput = screen.getByTestId('editor-import-input') as HTMLInputElement
+    const file = new File(['x'], 'inbound.docx', {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    })
+    await userEvent.upload(fileInput, file)
+
+    // ConfirmDialog is up; import has NOT been called yet.
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toBeInTheDocument()
+    expect(importMock.convertDocxToHtml).not.toHaveBeenCalled()
+    // Cancel closes the dialog without importing.
+    await userEvent.click(screen.getByRole('button', { name: /^Cancel$/i }))
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+    expect(importMock.convertDocxToHtml).not.toHaveBeenCalled()
+    // The original hydrated content is still on screen.
+    expect(
+      screen.getByText(/existing content — do not clobber/),
+    ).toBeInTheDocument()
+  })
+
+  it('editor with a non-empty doc: ConfirmDialog Replace-and-import triggers the import', async () => {
+    const hydrateBytes = makeYjsBytesWith('before import')
+    importMock.convertDocxToHtml.mockResolvedValue({
+      html: '<p>after import</p>',
+      warnings: [],
+    })
+    server.use(
+      http.get(`/api/v1/documents/${DID}`, () =>
+        HttpResponse.json(makeDocument({ myRole: 'editor', currentSnapshotId: SID })),
+      ),
+      http.get(
+        `/api/v1/documents/${DID}/snapshots/${SID}/state`,
+        () =>
+          new HttpResponse(hydrateBytes, {
+            headers: { 'Content-Type': 'application/octet-stream' },
+          }),
+      ),
+    )
+    renderAt(`/p/${PID}/f/${FID}/d/${DID}`)
+    await screen.findByText(/before import/)
+
+    const fileInput = screen.getByTestId('editor-import-input') as HTMLInputElement
+    const file = new File(['x'], 'inbound.docx', {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    })
+    await userEvent.upload(fileInput, file)
+
+    // Confirm dialog is up — click "Replace and import".
+    await screen.findByRole('dialog')
+    await userEvent.click(
+      screen.getByRole('button', { name: /Replace and import/i }),
+    )
+
+    await waitFor(() =>
+      expect(importMock.convertDocxToHtml).toHaveBeenCalledTimes(1),
+    )
+    // The imported HTML has replaced the pre-existing content.
+    await waitFor(() => {
+      expect(screen.getByText(/after import/)).toBeInTheDocument()
+    })
+    expect(screen.queryByText(/before import/)).not.toBeInTheDocument()
   })
 })
