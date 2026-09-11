@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { useEditor, EditorContent } from '@tiptap/react'
+import { useEditor, EditorContent, type Editor } from '@tiptap/react'
 import * as Y from 'yjs'
 import { Awareness } from 'y-protocols/awareness'
 import * as buffer from 'lib0/buffer'
@@ -8,7 +8,12 @@ import type { AiperRole, Document } from '@aiper/shared/types'
 import { ApiFetchError } from '../api/client'
 import { supabase } from '../auth/supabase'
 import { useSessionStore } from '../auth/sessionStore'
-import { getDocument, getSnapshotState, postSave } from '../api/endpoints'
+import {
+  createComment,
+  getDocument,
+  getSnapshotState,
+  postSave,
+} from '../api/endpoints'
 import { buildEditorExtensions } from './schema'
 import {
   AiperCollabProvider,
@@ -16,6 +21,7 @@ import {
   type CollabStatus,
 } from './collabProvider'
 import { HistoryPanel } from './HistoryPanel'
+import { CommentsPanel, type ComposePrompt } from './CommentsPanel'
 import './editor.css'
 
 /**
@@ -129,6 +135,12 @@ function EditorPageInner({ did, pid, fid }: { did: string; pid: string; fid: str
   // 'off' — provider not spawned yet (or torn down). Provider callbacks
   // move this through connecting → connected → disconnected / terminal.
   const [collabStatus, setCollabStatus] = useState<CollabStatus | 'off'>('off')
+
+  // PR-4 compose state — non-null while the user has hit "Comment" and is
+  // typing the body. `from`/`to` are captured at click time so a wandering
+  // selection while typing does not move where the mark lands.
+  interface PendingCompose extends ComposePrompt { from: number; to: number }
+  const [compose, setCompose] = useState<PendingCompose | null>(null)
 
   // Destroy the Y.Doc + Awareness on unmount. Kept separate from the
   // load effect so the load can rerun (StrictMode double-invoke, later
@@ -269,6 +281,64 @@ function EditorPageInner({ did, pid, fid }: { did: string; pid: string; fid: str
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
+  // PR-4 comment flow ---------------------------------------------------------
+  //
+  // Start: capture the current selection range + quoted text, generate a
+  // fresh markId, and hand it to CommentsPanel via `compose`. The panel
+  // opens itself and renders a compose form. Mark is NOT applied yet —
+  // that happens on submit, in the order (POST first, then mark) so a
+  // failed POST does not leave an orphan highlight peers can click on.
+  const startComment = useCallback((): void => {
+    if (!editor || !editable) return
+    const { from, to } = editor.state.selection
+    if (from === to) return // no selection, nothing to anchor to
+    const quotedText = editor.state.doc.textBetween(from, to, '\n', ' ').trim()
+    setCompose({
+      markId: crypto.randomUUID(),
+      quotedText: quotedText.slice(0, 4000), // matches server's quotedText cap
+      from,
+      to,
+    })
+  }, [editor, editable])
+
+  const submitCompose = useCallback(
+    async (body: string): Promise<void> => {
+      if (!editor || !compose) return
+      // POST first — a failed create must not leave an orphan mark in
+      // the shared Y.Doc, which every peer would see as a highlight
+      // without a thread. Only after a successful POST do we apply the
+      // mark to the captured range.
+      await createComment(did, {
+        markId: compose.markId,
+        quotedText: compose.quotedText,
+        body,
+      })
+      editor
+        .chain()
+        .focus()
+        .setTextSelection({ from: compose.from, to: compose.to })
+        .setMark('comment', { markId: compose.markId })
+        .run()
+      setCompose(null)
+    },
+    [editor, compose, did],
+  )
+
+  const cancelCompose = useCallback((): void => {
+    setCompose(null)
+  }, [])
+
+  // After the panel deletes a thread on the server, strip the mark
+  // from the local Y.Doc so peers stop seeing the orphan highlight.
+  // (Peers eventually observe this via CRDT sync.)
+  const stripCommentMark = useCallback(
+    (markId: string): void => {
+      if (!editor) return
+      removeCommentMarkFromEditor(editor, markId)
+    },
+    [editor],
+  )
+
   // Yjs WebSocket provider — spawns after the initial HTTP load resolves
   // so hydrated bytes are already in the Y.Doc; the provider's own
   // SyncStep1 then only asks the server for what is truly missing.
@@ -329,6 +399,16 @@ function EditorPageInner({ did, pid, fid }: { did: string; pid: string; fid: str
         {editable && (
           <button
             type="button"
+            className="editor-titlebar-btn"
+            onClick={startComment}
+            title="Comment on the current selection"
+          >
+            Comment
+          </button>
+        )}
+        {editable && (
+          <button
+            type="button"
             className="editor-save-btn"
             onClick={() => void save()}
             disabled={saveState.saving}
@@ -344,8 +424,41 @@ function EditorPageInner({ did, pid, fid }: { did: string; pid: string; fid: str
         </div>
       </div>
       <HistoryPanel documentId={did} />
+      <CommentsPanel
+        documentId={did}
+        ydoc={ydoc}
+        role={role}
+        compose={compose}
+        onSubmitCompose={submitCompose}
+        onCancelCompose={cancelCompose}
+        onAfterDelete={stripCommentMark}
+      />
     </div>
   )
+}
+
+/**
+ * Strip every occurrence of the `comment` mark with `markId === target`
+ * from the editor's ProseMirror document. Called after a successful
+ * DELETE /comments/:markId so the shared Y.Doc loses the orphan
+ * highlight the same tick the thread disappears. Peers observe the
+ * mark removal via CRDT sync on their side.
+ */
+function removeCommentMarkFromEditor(editor: Editor, target: string): void {
+  const markType = editor.schema.marks['comment']
+  if (!markType) return
+  const tr = editor.state.tr
+  let modified = false
+  editor.state.doc.descendants((node, pos) => {
+    if (node.marks.length === 0) return
+    for (const m of node.marks) {
+      if (m.type === markType && m.attrs['markId'] === target) {
+        tr.removeMark(pos, pos + node.nodeSize, markType)
+        modified = true
+      }
+    }
+  })
+  if (modified) editor.view.dispatch(tr)
 }
 
 /**

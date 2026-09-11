@@ -4,6 +4,7 @@ import CollaborationCursor from '@tiptap/extension-collaboration-cursor'
 import type { Extensions } from '@tiptap/core'
 import type * as Y from 'yjs'
 import type { Awareness } from 'y-protocols/awareness'
+import { CommentMark } from './commentMark'
 
 /**
  * ─── ⚠  IMMORTAL CONTRACT — DO NOT RENAME  ⚠ ──────────────────────────────
@@ -56,6 +57,13 @@ export const Y_DOC_FRAGMENT_FIELD = 'default'
  * Enabling both would produce two competing undo stacks and, once the
  * local one rolls back writes the Y.Doc has already broadcast to
  * peers, corrupt the shared state.
+ *
+ * PR-4 addition: `CommentMark` (mark name `comment`, attribute
+ * `markId: string`). Anchors a REST comment thread to a range of text
+ * inside the shared Y.Doc so the highlight syncs to peers CRDT-native
+ * and persists in snapshots. Additive-safe per the rule above — the
+ * mark name and attribute name are permanent on-wire keys and must
+ * never be renamed. See commentMark.ts for the extension itself.
  */
 /**
  * Runtime bits `buildEditorExtensions` needs.
@@ -81,6 +89,9 @@ export function buildEditorExtensions(rt: EditorCollabRuntime): Extensions {
     // history: false — Yjs owns undo via Collaboration. See above.
     StarterKit.configure({ history: false }),
     Collaboration.configure({ document: rt.ydoc, field: Y_DOC_FRAGMENT_FIELD }),
+    // Comment highlights — every role gets the mark so viewers can see
+    // (and click through) threads too. PR-4.
+    CommentMark,
   ]
   if (rt.cursor) {
     extensions.push(
