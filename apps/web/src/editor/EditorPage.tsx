@@ -22,6 +22,12 @@ import {
 } from './collabProvider'
 import { HistoryPanel } from './HistoryPanel'
 import { CommentsPanel, type ComposePrompt } from './CommentsPanel'
+import {
+  buildDocxBlob,
+  downloadBlob,
+  slugifyForDocxFilename,
+  type PMNode,
+} from './docxExport'
 import './editor.css'
 
 /**
@@ -141,6 +147,12 @@ function EditorPageInner({ did, pid, fid }: { did: string; pid: string; fid: str
   // selection while typing does not move where the mark lands.
   interface PendingCompose extends ComposePrompt { from: number; to: number }
   const [compose, setCompose] = useState<PendingCompose | null>(null)
+
+  // PR-5 DOCX export state — a single flag is enough; the button is
+  // available to every role (viewers can already read the doc, export
+  // leaks no new data).
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
 
   // Destroy the Y.Doc + Awareness on unmount. Kept separate from the
   // load effect so the load can rerun (StrictMode double-invoke, later
@@ -339,6 +351,26 @@ function EditorPageInner({ did, pid, fid }: { did: string; pid: string; fid: str
     [editor],
   )
 
+  // Export the current document as .docx. Source is `editor.getJSON()`
+  // (ProseMirror tree) rather than the Y.Doc — the JSON matches the
+  // TipTap schema exactly and is trivial to walk. See docxExport.ts
+  // for the node/mark mapping and comment-mark drop rule.
+  const documentTitle = state.document?.title ?? 'document'
+  const exportDocx = useCallback(async (): Promise<void> => {
+    if (!editor || exporting) return
+    setExporting(true)
+    setExportError(null)
+    try {
+      const json = editor.getJSON() as unknown as PMNode
+      const blob = await buildDocxBlob(json, documentTitle)
+      downloadBlob(blob, `${slugifyForDocxFilename(documentTitle)}.docx`)
+    } catch (err: unknown) {
+      setExportError(describeError(err))
+    } finally {
+      setExporting(false)
+    }
+  }, [editor, exporting, documentTitle])
+
   // Yjs WebSocket provider — spawns after the initial HTTP load resolves
   // so hydrated bytes are already in the Y.Doc; the provider's own
   // SyncStep1 then only asks the server for what is truly missing.
@@ -396,6 +428,19 @@ function EditorPageInner({ did, pid, fid }: { did: string; pid: string; fid: str
         <h1 className="editor-titlebar-title">{doc.title}</h1>
         <CollabStatusDot status={collabStatus} />
         <SaveStatusPill save={saveState} editable={editable} />
+        <button
+          type="button"
+          className="editor-titlebar-btn"
+          onClick={() => void exportDocx()}
+          disabled={exporting}
+          title={
+            exportError
+              ? `Export failed — ${exportError}`
+              : 'Export this document as .docx'
+          }
+        >
+          {exporting ? 'Exporting…' : 'Export DOCX'}
+        </button>
         {editable && (
           <button
             type="button"

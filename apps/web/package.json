@@ -24,6 +24,7 @@
     "@tiptap/pm": "^2.26.2",
     "@tiptap/react": "^2.26.2",
     "@tiptap/starter-kit": "^2.26.2",
+    "docx": "^9.5.1",
     "lib0": "^0.2.117",
     "lucide-react": "^0.544.0",
     "react": "^18.3.1",
@@ -43,6 +44,7 @@
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^4.7.0",
     "jsdom": "^25.0.1",
+    "jszip": "^3.10.1",
     "msw": "^2.6.4",
     "vite": "^5.4.20",
     "vitest": "^2.1.4"
