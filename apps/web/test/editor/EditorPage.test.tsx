@@ -171,7 +171,7 @@ describe('EditorPage', () => {
     renderAt(`/p/${PID}/f/${FID}/d/${DID}`)
 
     await screen.findByRole('heading', { name: /Thermal Vacuum Report/i })
-    expect(screen.queryByRole('button', { name: /save/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
     expect(screen.getByText(/Read-only/i)).toBeInTheDocument()
   })
 
@@ -204,7 +204,7 @@ describe('EditorPage', () => {
     )
 
     renderAt(`/p/${PID}/d/${DID}`)
-    const saveBtn = await screen.findByRole('button', { name: /save/i })
+    const saveBtn = await screen.findByRole('button', { name: 'Save' })
     // Wait for hydration to seed the ydoc — otherwise the base64 would be
     // an empty-doc state vector and the round-trip assertion would still
     // pass vacuously (empty in = empty out). Waiting for the text asserts
@@ -257,7 +257,7 @@ describe('EditorPage', () => {
     )
     renderAt(`/p/${PID}/f/${FID}/d/${DID}`)
 
-    const saveBtn = await screen.findByRole('button', { name: /save/i })
+    const saveBtn = await screen.findByRole('button', { name: 'Save' })
     await userEvent.click(saveBtn)
 
     // ApiFetchError.message = server error text; describeError prefixes status.
@@ -285,7 +285,7 @@ describe('EditorPage', () => {
       }),
     )
     renderAt(`/p/${PID}/f/${FID}/d/${DID}`)
-    await screen.findByRole('button', { name: /save/i })
+    await screen.findByRole('button', { name: 'Save' })
 
     // userEvent's keyboard API dispatches at window level, which is where
     // the EditorPage's Cmd-S listener is registered.
