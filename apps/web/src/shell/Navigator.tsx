@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ChevronDown,
   ChevronRight,
@@ -14,6 +14,8 @@ import type { ProjectFolderTree } from '@aiper/shared/types'
 import { useUiStore } from './uiStore'
 import { getProjectFolderTree } from '../api/endpoints'
 import { ApiFetchError } from '../api/client'
+import { RowActions } from '../components/RowActions'
+import '../components/rowActions.css'
 
 type FolderEntry = ProjectFolderTree['folders'][number]
 
@@ -93,7 +95,8 @@ export function Navigator() {
 /**
  * Fetches `getProjectFolderTree(pid)`, computes each entry's depth from the
  * flat DFS-preorder walk, filters by `navFilter`, and renders folders +
- * documents with click-through navigation.
+ * documents with click-through navigation. Per-row Rename / Move / Delete
+ * lives in `<RowActions>`, hidden until the row is hovered / focused.
  */
 function FolderTree({
   pid,
@@ -111,15 +114,15 @@ function FolderTree({
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const navFilter = useUiStore((s) => s.navFilter)
 
-  useEffect(() => {
-    setTree(null)
-    setError(null)
-    setLoading(true)
-    const ac = new AbortController()
-    getProjectFolderTree(pid, ac.signal)
-      .then(setTree)
-      .catch((err: unknown) => {
-        if (ac.signal.aborted) return
+  const load = useCallback(
+    async (signal?: AbortSignal): Promise<void> => {
+      try {
+        const t = await getProjectFolderTree(pid, signal)
+        if (signal?.aborted) return
+        setTree(t)
+        setError(null)
+      } catch (err: unknown) {
+        if (signal?.aborted) return
         setError(
           err instanceof ApiFetchError
             ? `${err.status} ${err.message}`
@@ -127,12 +130,21 @@ function FolderTree({
               ? err.message
               : 'Could not load project folders.',
         )
-      })
-      .finally(() => {
-        if (!ac.signal.aborted) setLoading(false)
-      })
+      } finally {
+        if (!signal?.aborted) setLoading(false)
+      }
+    },
+    [pid],
+  )
+
+  useEffect(() => {
+    setTree(null)
+    setError(null)
+    setLoading(true)
+    const ac = new AbortController()
+    void load(ac.signal)
     return () => ac.abort()
-  }, [pid])
+  }, [load])
 
   const rows = useMemo<Row[]>(() => {
     if (!tree) return []
@@ -201,6 +213,8 @@ function FolderTree({
     return !collapsed.has(parentId)
   }
 
+  const refetch = (): Promise<void> => load()
+
   return (
     <div className="tree-list">
       {visibleRows.map(({ entry, depth }) => {
@@ -238,6 +252,21 @@ function FolderTree({
               <span className="tree-label" title={entry.folder.name}>
                 {entry.folder.name}
               </span>
+              <div onClick={(e) => e.stopPropagation()}>
+                <RowActions
+                  subjectType="folder"
+                  subjectId={entry.folder.id}
+                  subjectLabel={entry.folder.name}
+                  role={entry.folder.myRole}
+                  projectId={tree.project.id}
+                  currentParent={
+                    entry.folder.parentFolderId === null
+                      ? { kind: 'root' }
+                      : { kind: 'folder', folderId: entry.folder.parentFolderId }
+                  }
+                  onChanged={refetch}
+                />
+              </div>
             </div>
 
             {!isCollapsed &&
@@ -254,6 +283,25 @@ function FolderTree({
                   <span className="tree-caret-spacer" />
                   <FileText size={13} strokeWidth={1.5} className="tree-icon" />
                   <span className="tree-label">{d.title}</span>
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <RowActions
+                      subjectType="document"
+                      subjectId={d.id}
+                      subjectLabel={d.title}
+                      // Tree endpoint does not carry per-document myRole.
+                      // Inherit the folder's role as the doc's default —
+                      // aiper_effective_access climbs UP so an editor/owner
+                      // on the folder is at least that on every doc directly
+                      // inside it. A doc-level grant that raises a viewer
+                      // to editor here would be under-reported; users manage
+                      // that doc from FolderViewPage where myRole IS
+                      // returned per row.
+                      role={entry.folder.myRole}
+                      projectId={tree.project.id}
+                      currentParent={{ kind: 'folder', folderId: entry.folder.id }}
+                      onChanged={refetch}
+                    />
+                  </div>
                 </div>
               ))}
           </div>
@@ -262,3 +310,4 @@ function FolderTree({
     </div>
   )
 }
+

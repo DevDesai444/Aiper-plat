@@ -1,0 +1,212 @@
+/*
+ * <RowActionsMenu>, <RenameDialog>, <ConfirmDialog>, <MoveDialog> styles.
+ * Reuses the Modal primitive's card / header layout from share.css; adds
+ * only the row-scoped and dialog-body bits.
+ */
+
+/* ---------- Row ⋯ trigger + popover ---------- */
+.row-actions {
+  position: relative;
+  display: inline-block;
+  flex: none;
+}
+
+/* In the Navigator tree, keep the trigger out of the way until the row is
+ * hovered or holds focus. `.tree-row` marks the row; visibility (not
+ * display) preserves the layout slot so hover-target size stays stable.
+ * `:focus-within` catches keyboard nav — Tab through the row, the trigger
+ * appears; open the menu, the popover items keep focus-within true so the
+ * menu itself remains reachable. */
+.tree-row .row-actions {
+  visibility: hidden;
+  margin-left: auto;
+}
+.tree-row:hover .row-actions,
+.tree-row:focus-within .row-actions {
+  visibility: visible;
+}
+.row-actions-trigger {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--mut2);
+  padding: 4px 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.row-actions-trigger:hover,
+.row-actions-trigger[aria-expanded='true'] {
+  color: var(--ink);
+  border-color: var(--dv);
+}
+.row-actions-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 60;
+  min-width: 150px;
+  background: var(--chrome);
+  border: 1px solid var(--dv);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+.row-actions-menu button {
+  background: none;
+  border: none;
+  color: var(--ink);
+  text-align: left;
+  font-size: 12.5px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.row-actions-menu button:hover:not(:disabled) {
+  background: var(--chrome2);
+}
+.row-actions-menu button:disabled {
+  color: var(--mut2);
+  cursor: default;
+}
+.row-actions-menu button.is-danger {
+  color: var(--hi);
+}
+.row-actions-menu button.is-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--hi) 15%, transparent);
+}
+
+/* ---------- Rename / Confirm / Move dialog bodies ---------- */
+.row-dialog-label {
+  display: block;
+  font-family: var(--font-label);
+  font-size: 10.5px;
+  color: var(--mut);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+}
+.row-dialog-input {
+  width: 100%;
+  background: var(--chrome2);
+  border: 1px solid var(--dv);
+  color: var(--ink);
+  font-size: 13px;
+  padding: 8px 10px;
+  outline: none;
+}
+.row-dialog-input:focus {
+  border-color: var(--color-accent);
+}
+.row-dialog-message {
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+.row-dialog-muted {
+  color: var(--mut2);
+  font-size: 12px;
+  font-style: italic;
+  padding: 8px 0;
+}
+.row-dialog-error {
+  border: 1px solid color-mix(in srgb, var(--hi) 45%, transparent);
+  color: var(--hi);
+  font-size: 12px;
+  padding: 8px 10px;
+  margin-bottom: 12px;
+}
+.row-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+.row-dialog-btn {
+  background: none;
+  border: 1px solid var(--dv);
+  color: var(--ink);
+  font-size: 12px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-family: var(--font-label);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.row-dialog-btn:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+.row-dialog-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.row-dialog-btn.is-primary {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #10141a;
+}
+.row-dialog-btn.is-primary:hover:not(:disabled) {
+  background: var(--color-accent-400);
+  border-color: var(--color-accent-400);
+  color: #10141a;
+}
+.row-dialog-btn.is-danger {
+  background: var(--hi);
+  border-color: var(--hi);
+  color: #10141a;
+}
+.row-dialog-btn.is-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--hi) 85%, white);
+}
+
+/* ---------- Move-target picker ---------- */
+.move-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--dv2);
+}
+.move-list li {
+  border-top: 1px solid var(--dv2);
+}
+.move-list li:first-child {
+  border-top: none;
+}
+.move-target {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--ink);
+  font-size: 12.5px;
+  padding: 8px 12px;
+  cursor: pointer;
+  text-align: left;
+}
+.move-target:hover:not(:disabled) {
+  background: var(--chrome2);
+}
+.move-target:disabled {
+  color: var(--mut2);
+  cursor: default;
+}
+.move-target-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.move-target-tag {
+  font-family: var(--font-label);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--mut2);
+  border: 1px solid var(--dv);
+  padding: 2px 6px;
+}

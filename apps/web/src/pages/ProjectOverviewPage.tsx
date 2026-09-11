@@ -9,7 +9,9 @@ import {
 } from '../api/endpoints'
 import { ApiFetchError } from '../api/client'
 import { ShareDialog } from '../components/ShareDialog'
+import { RowActions } from '../components/RowActions'
 import '../components/share.css'
+import '../components/rowActions.css'
 import './pages.css'
 
 type CreateMode = 'folder' | 'document'
@@ -123,8 +125,29 @@ export function ProjectOverviewPage() {
               <div className="card-list">
                 {documents.map((d) => (
                   <div key={d.id} className="card card--static">
-                    <span className="card-title">{d.title}</span>
-                    <span className="card-sub">{d.kind} · editor coming from E7</span>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        justifyContent: 'space-between',
+                        gap: 8,
+                      }}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+                        <span className="card-title">{d.title}</span>
+                        <span className="card-sub">{d.kind}</span>
+                        {d.myRole && <span className="card-tag">{d.myRole}</span>}
+                      </div>
+                      <RowActions
+                        subjectType="document"
+                        subjectId={d.id}
+                        subjectLabel={d.title}
+                        role={d.myRole}
+                        projectId={project.id}
+                        currentParent={{ kind: 'root' }}
+                        onChanged={() => load()}
+                      />
+                    </div>
                   </div>
                 ))}
               </div>
